@@ -1,17 +1,13 @@
 import { Download } from 'lucide-react';
 
 export function ExportButton() {
-  const handleExport = () => {
-    window.print();
-  };
-
   return (
     <button
-      onClick={handleExport}
-      className="flex items-center gap-2 px-4 py-2 bg-surface-light text-sm text-muted hover:text-text rounded-lg transition"
+      onClick={() => window.print()}
+      className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-muted hover:text-text bg-surface border border-border rounded-lg hover:border-border-light transition"
     >
-      <Download size={16} />
-      Export Report
+      <Download size={11} />
+      Export
     </button>
   );
 }

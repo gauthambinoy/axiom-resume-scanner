@@ -1,64 +1,60 @@
 import type { BulletAnalysisResponse } from '../../types';
 
-const RISK_COLORS: Record<string, string> = {
-  clean: 'border-l-green-500',
-  suspicious: 'border-l-yellow-500',
-  flagged: 'border-l-red-500',
+const RISK_DOT: Record<string, string> = {
+  clean: 'bg-success',
+  suspicious: 'bg-warning',
+  flagged: 'bg-danger',
 };
 
 export function BulletAnalysis({ bullets }: { bullets: BulletAnalysisResponse[] }) {
   if (!bullets.length) return null;
 
   return (
-    <div className="bg-surface rounded-xl p-6 border border-surface-light">
-      <h3 className="font-semibold text-lg mb-4">Bullet-by-Bullet Analysis</h3>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-muted border-b border-surface-light">
-              <th className="pb-2 pr-2">#</th>
-              <th className="pb-2 pr-2">First Word</th>
-              <th className="pb-2 pr-2">Words</th>
-              <th className="pb-2 pr-2">Diff</th>
-              <th className="pb-2 pr-2">Structure</th>
-              <th className="pb-2 pr-2">Flags</th>
-              <th className="pb-2">Risk</th>
-            </tr>
-          </thead>
-          <tbody>
-            {bullets.map((b, i) => (
-              <tr
-                key={i}
-                className={`border-l-2 ${RISK_COLORS[b.ai_risk] || ''} hover:bg-surface-light/30 transition`}
-                title={b.text}
-              >
-                <td className="py-2 pr-2 text-muted">{i + 1}</td>
-                <td className="py-2 pr-2 font-mono text-xs">{b.first_word}</td>
-                <td className="py-2 pr-2">{b.word_count}</td>
-                <td className="py-2 pr-2 text-muted">{b.diff_from_previous !== null ? b.diff_from_previous : '-'}</td>
-                <td className="py-2 pr-2 text-xs">{b.structure_type.replace('TYPE_', '')}</td>
-                <td className="py-2 pr-2">
-                  {b.flags.length > 0 ? (
-                    <span className="text-xs text-warning" title={b.flags.join('\n')}>
-                      {b.flags.length} issue{b.flags.length > 1 ? 's' : ''}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-success">OK</span>
-                  )}
-                </td>
-                <td className="py-2">
-                  <span className={`text-xs font-medium ${
-                    b.ai_risk === 'clean' ? 'text-green-400'
-                      : b.ai_risk === 'suspicious' ? 'text-yellow-400'
-                      : 'text-red-400'
-                  }`}>
-                    {b.ai_risk}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div className="card p-5">
+      <h3 className="text-sm font-medium mb-4">Bullet Analysis</h3>
+      <div className="space-y-1">
+        {bullets.map((b, i) => (
+          <div
+            key={i}
+            className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-light/30 transition group"
+          >
+            <div className="flex items-center gap-2 shrink-0 mt-0.5">
+              <span className="mono text-[10px] text-muted w-4 text-right">{i + 1}</span>
+              <div className={`w-1.5 h-1.5 rounded-full ${RISK_DOT[b.ai_risk]}`} />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] text-text-secondary leading-relaxed truncate group-hover:whitespace-normal group-hover:overflow-visible">
+                {b.text}
+              </p>
+              {b.flags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {b.flags.map((f, j) => (
+                    <span key={j} className="text-[9px] px-1.5 py-0.5 rounded bg-danger-dim text-danger/80">{f}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0 text-[10px] text-muted">
+              <span className="mono w-6 text-right">{b.word_count}w</span>
+              {b.diff_from_previous !== null && (
+                <span className={`mono w-6 text-right ${b.diff_from_previous < 3 ? 'text-warning' : ''}`}>
+                  {b.diff_from_previous === 0 ? '=' : `${b.diff_from_previous > 0 ? '+' : ''}${b.diff_from_previous}`}
+                </span>
+              )}
+              <span className="w-16 text-right text-[9px] uppercase tracking-wider">
+                {b.structure_type.replace('TYPE_', '').toLowerCase().replace('_', ' ')}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border text-[10px] text-muted">
+        <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-success" /> Clean</span>
+        <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-warning" /> Suspicious</span>
+        <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-danger" /> Flagged</span>
       </div>
     </div>
   );

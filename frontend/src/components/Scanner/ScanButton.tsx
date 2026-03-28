@@ -1,5 +1,4 @@
-import { Zap } from 'lucide-react';
-import { LoadingSpinner } from '../common/LoadingSpinner';
+import { ArrowRight, Loader2 } from 'lucide-react';
 
 interface Props {
   onClick: () => void;
@@ -12,17 +11,17 @@ export function ScanButton({ onClick, isLoading, disabled }: Props) {
     <button
       onClick={onClick}
       disabled={disabled || isLoading}
-      className="w-full py-4 bg-primary hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition flex items-center justify-center gap-2 text-lg"
+      className="w-full py-3 bg-primary hover:bg-primary-light disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-all flex items-center justify-center gap-2 active:scale-[0.99]"
     >
       {isLoading ? (
         <>
-          <LoadingSpinner size="sm" />
-          Scanning...
+          <Loader2 size={14} className="animate-spin" />
+          Analyzing...
         </>
       ) : (
         <>
-          <Zap size={20} />
-          Scan My Resume
+          Run scan
+          <ArrowRight size={14} />
         </>
       )}
     </button>

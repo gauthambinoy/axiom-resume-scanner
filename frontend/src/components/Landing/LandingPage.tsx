@@ -1,9 +1,6 @@
 import { HeroSection } from './HeroSection';
-import { FeatureGrid } from './FeatureGrid';
 import { HowItWorks } from './HowItWorks';
-import { Testimonials } from './Testimonials';
-import { PricingSection } from './PricingSection';
-import { CTASection } from './CTASection';
+import { FeatureGrid } from './FeatureGrid';
 import { ScannerPage } from '../Scanner/ScannerPage';
 
 export function LandingPage() {
@@ -11,11 +8,12 @@ export function LandingPage() {
     <div>
       <HeroSection />
       <HowItWorks />
-      <ScannerPage />
-      <FeatureGrid />
-      <Testimonials />
-      <PricingSection />
-      <CTASection />
+      <div className="border-t border-border">
+        <ScannerPage />
+      </div>
+      <div className="border-t border-border">
+        <FeatureGrid />
+      </div>
     </div>
   );
 }
