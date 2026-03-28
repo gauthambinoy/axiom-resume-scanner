@@ -35,6 +35,9 @@ class Settings(BaseSettings):
         "https://resumeshield-git-main-gauthambinoy.vercel.app",
     ]
 
+    # HuggingFace API (for ML paraphrasing in humanization — optional, works without it)
+    huggingface_api_key: str = ""
+
     # Sentry
     sentry_dsn: str = ""
 

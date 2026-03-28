@@ -15,8 +15,8 @@ class CombinedScore:
 
 
 class ScoreNormalizer:
-    AVERAGE_ATS_SCORE = 58
-    ATS_STD_DEV = 15
+    AVERAGE_ATS_SCORE = 55  # Recalibrated: most resumes score lower than expected
+    ATS_STD_DEV = 18        # Wider spread for more granular percentiles
 
     def combine(self, ats: ATSScoreResult, ai: AIDetectionResult) -> CombinedScore:
         result = CombinedScore()
@@ -24,16 +24,21 @@ class ScoreNormalizer:
         ats_score = ats.overall_score
         ai_score = ai.overall_score
 
-        # Readiness level
-        if ats_score > 75 and ai_score < 30:
+        # Tighter readiness thresholds — INTERVIEW_READY should be hard to earn
+        if ats_score >= 80 and ai_score < 25:
             result.readiness_level = "INTERVIEW_READY"
-        elif ats_score > 60 and ai_score < 50:
+        elif ats_score >= 65 and ai_score < 40:
             result.readiness_level = "NEEDS_WORK"
         else:
             result.readiness_level = "AT_RISK"
 
-        # Combined score: high ATS is good, low AI is good
+        # Combined score with AI penalty curve — high AI scores penalize MORE
         ai_inverted = max(0, 100 - ai_score)
+        # Apply penalty multiplier: AI score > 50 gets extra penalty
+        if ai_score > 50:
+            ai_penalty = (ai_score - 50) * 0.3  # Extra penalty for high AI
+            ai_inverted = max(0, ai_inverted - ai_penalty)
+
         result.interview_readiness_score = round(ats_score * 0.6 + ai_inverted * 0.4)
         result.interview_readiness_score = min(100, max(0, result.interview_readiness_score))
 

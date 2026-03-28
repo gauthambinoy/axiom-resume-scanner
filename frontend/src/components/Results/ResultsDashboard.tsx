@@ -6,6 +6,7 @@ import { BulletAnalysis } from './BulletAnalysis';
 import { FixSuggestions } from './FixSuggestions';
 import { KeywordGrid } from './KeywordGrid';
 import { ExportButton } from './ExportButton';
+import { HumanizePanel } from './HumanizePanel';
 import { formatMs } from '../../utils/formatters';
 import { Clock, TrendingUp } from 'lucide-react';
 
@@ -15,7 +16,14 @@ const READINESS: Record<string, { label: string; color: string }> = {
   AT_RISK: { label: 'At risk', color: '#EF4444' },
 };
 
-export function ResultsDashboard({ result }: { result: ScanResponse }) {
+interface ResultsDashboardProps {
+  result: ScanResponse;
+  resumeText?: string;
+  jdText?: string;
+  onRescan?: (text: string) => void;
+}
+
+export function ResultsDashboard({ result, resumeText, jdText, onRescan }: ResultsDashboardProps) {
   const readiness = READINESS[result.combined.readiness_level] || READINESS.AT_RISK;
 
   return (
@@ -65,6 +73,17 @@ export function ResultsDashboard({ result }: { result: ScanResponse }) {
         <ATSPanel ats={result.ats_score} />
         <AIDetectionPanel ai={result.ai_score} />
       </div>
+
+      {/* Humanize CTA */}
+      {resumeText && jdText && (
+        <HumanizePanel
+          aiScore={result.ai_score.overall_score}
+          riskLevel={result.ai_score.risk_level}
+          resumeText={resumeText}
+          jdText={jdText}
+          onRescan={onRescan}
+        />
+      )}
 
       {/* Keywords */}
       <KeywordGrid ats={result.ats_score} />

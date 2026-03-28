@@ -143,6 +143,16 @@ export interface BannedPhrasesResponse {
   ai_patterns: string[];
 }
 
+export interface HumanizeResponse {
+  original_text: string;
+  humanized_text: string;
+  original_ai_score: number;
+  new_ai_score: number;
+  improvement: number;
+  retries_used: number;
+  success: boolean;
+}
+
 export interface ErrorResponse {
   error_code: string;
   message: string;

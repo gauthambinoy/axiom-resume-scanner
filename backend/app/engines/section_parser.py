@@ -52,13 +52,19 @@ class SectionParseResult:
 
 
 _HEADER_PATTERNS = [
-    re.compile(r"^([A-Z][A-Z\s&/]{2,})$", re.MULTILINE),
-    re.compile(r"^([A-Za-z\s&/]+):\s*$", re.MULTILINE),
-    re.compile(r"^(?:#{1,3})\s+(.+)$", re.MULTILINE),
-    re.compile(r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s*$", re.MULTILINE),
+    re.compile(r"^([A-Z][A-Z\s&/]{2,})$", re.MULTILINE),                     # ALL CAPS HEADER
+    re.compile(r"^([A-Za-z\s&/]+):\s*$", re.MULTILINE),                       # Header:
+    re.compile(r"^(?:#{1,3})\s+(.+)$", re.MULTILINE),                          # ### Markdown header
+    re.compile(r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s*$", re.MULTILINE),       # Title Case Header
+    # New patterns for edge cases
+    re.compile(r"^[-=]{3,}\s*\n\s*(.+)$", re.MULTILINE),                       # --- below header
+    re.compile(r"^(.+)\s*\n\s*[-=]{3,}$", re.MULTILINE),                       # header above ---
+    re.compile(r"^\*\*([A-Za-z\s&/]+)\*\*\s*$", re.MULTILINE),                # **Bold Header**
+    re.compile(r"^([A-Z][A-Z\s&/]+)(?:\s*[-|:]\s*)$", re.MULTILINE),          # HEADER - or HEADER |
+    re.compile(r"^(?:•|\d+\.)\s*([A-Z][A-Z\s&/]{2,})\s*$", re.MULTILINE),    # • HEADER or 1. HEADER
 ]
 
-_BULLET_PATTERN = re.compile(r"^\s*(?:[•\-\*▪◦►]|\d+[.)]\s)")
+_BULLET_PATTERN = re.compile(r"^\s*(?:[•\-\*▪◦►✦✧⦿⬤➤➜→▸▹⁃‣]|\d+[.)]\s|[a-z][.)]\s)")
 _METRIC_END_PATTERN = re.compile(r"(?:\d+[\d,.]*\s*%|\d+[xX]|\$[\d,.]+[MKB]?)\s*\.?\s*$")
 _METRIC_PATTERN = re.compile(r"\d+[\d,.]*\s*%|\d+[xX]|\$[\d,.]+")
 
@@ -161,7 +167,10 @@ class SectionParser:
                         break
 
         if not section_starts:
-            return {}
+            # Fallback: try to infer sections from content patterns
+            section_starts = self._infer_sections_from_content(lines)
+            if not section_starts:
+                return {}
 
         sections: dict[str, str] = {}
         for idx, (line_num, header) in enumerate(section_starts):
@@ -172,15 +181,72 @@ class SectionParser:
 
         return sections
 
+    def _infer_sections_from_content(self, lines: list[str]) -> list[tuple[int, str]]:
+        """Fallback: detect sections by content patterns when no headers are found."""
+        inferred: list[tuple[int, str]] = []
+        date_pattern = re.compile(
+            r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{4}"
+            r"|(?:\d{1,2}/\d{4})"
+            r"|(?:\d{4}\s*[-–]\s*(?:\d{4}|present|current))",
+            re.IGNORECASE,
+        )
+        email_pattern = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+        skill_keywords = {"python", "java", "javascript", "react", "aws", "docker", "sql", "git"}
+
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            # Detect contact area (email/phone in first 5 lines)
+            if i < 5 and email_pattern.search(stripped):
+                inferred.append((0, "Contact"))
+                continue
+
+            # Detect education (university, bachelor, master, degree)
+            if re.search(r"(?i)\b(university|bachelor|master|degree|b\.?s\.?|m\.?s\.?|ph\.?d)\b", stripped):
+                if not any(name == "Education" for _, name in inferred):
+                    inferred.append((i, "Education"))
+                continue
+
+            # Detect experience (dates + company-like context)
+            if date_pattern.search(stripped) and _BULLET_PATTERN.match(lines[min(i+1, len(lines)-1)].strip() if i+1 < len(lines) else ""):
+                if not any(name == "Experience" for _, name in inferred):
+                    inferred.append((i, "Experience"))
+                continue
+
+            # Detect skills (many tech keywords on one line)
+            words_lower = set(stripped.lower().replace(",", " ").replace("|", " ").split())
+            if len(words_lower & skill_keywords) >= 3:
+                if not any(name == "Skills" for _, name in inferred):
+                    inferred.append((i, "Skills"))
+
+        return inferred
+
     def _is_known_section(self, header: str) -> bool:
         normalized = header.lower().strip()
         for section in RESUME_SECTIONS:
             if section in normalized or normalized in section:
                 return True
-        # Also accept common variations
-        extras = {"professional experience", "core skills", "key skills", "work history",
-                  "professional summary", "career objective", "additional skills",
-                  "relevant experience", "leadership", "activities", "honors"}
+        # Extended variations for better edge-case detection
+        extras = {
+            "professional experience", "core skills", "key skills", "work history",
+            "professional summary", "career objective", "additional skills",
+            "relevant experience", "leadership", "activities", "honors",
+            # Additional variations
+            "career history", "employment history", "professional background",
+            "areas of expertise", "core competencies", "technical expertise",
+            "selected projects", "key projects", "notable projects",
+            "professional development", "training", "licenses",
+            "community involvement", "extracurricular", "affiliations",
+            "memberships", "professional affiliations", "industry knowledge",
+            "academic background", "academic history", "research",
+            "technologies", "tech stack", "tools & technologies",
+            "tools and technologies", "programming", "frameworks",
+            "about me", "personal statement", "career summary",
+            "executive summary", "qualifications summary", "highlight",
+            "highlights", "key achievements", "accomplishments",
+        }
         return normalized in extras
 
     def _normalize_name(self, name: str) -> str:
@@ -229,7 +295,7 @@ class SectionParser:
                     if bp.word_count >= 3:
                         bullets.append(bp)
                         position += 1
-                cleaned = re.sub(r"^\s*(?:[•\-\*▪◦►]|\d+[.)]\s)\s*", "", stripped)
+                cleaned = re.sub(r"^\s*(?:[•\-\*▪◦►✦✧⦿⬤➤➜→▸▹⁃‣]|\d+[.)]\s|[a-z][.)]\s)\s*", "", stripped)
                 current_bullet = cleaned
             else:
                 if current_bullet:
@@ -332,7 +398,7 @@ class SectionParser:
                         if len(parts) > 1:
                             current_entry.company = parts[1].strip()
                 elif current_entry and _BULLET_PATTERN.match(stripped):
-                    cleaned = re.sub(r"^\s*(?:[•\-\*▪◦►]|\d+[.)]\s)\s*", "", stripped)
+                    cleaned = re.sub(r"^\s*(?:[•\-\*▪◦►✦✧⦿⬤➤➜→▸▹⁃‣]|\d+[.)]\s|[a-z][.)]\s)\s*", "", stripped)
                     bp = self._make_bullet(cleaned, "experience", len(current_entry.bullets))
                     current_entry.bullets.append(bp)
 

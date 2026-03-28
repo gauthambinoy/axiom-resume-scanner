@@ -7,6 +7,7 @@ import type {
   StatsResponse,
   KeywordExtractionResponse,
   BannedPhrasesResponse,
+  HumanizeResponse,
 } from '../types';
 
 const api = axios.create({
@@ -93,6 +94,14 @@ export async function extractKeywords(jdText: string): Promise<KeywordExtraction
   const { data } = await api.get<KeywordExtractionResponse>('/keywords/extract', {
     params: { jd_text: jdText },
   });
+  return data;
+}
+
+export async function humanizeResume(resumeText: string, jdText: string): Promise<HumanizeResponse> {
+  const { data } = await api.post<HumanizeResponse>('/humanize', {
+    resume_text: resumeText,
+    jd_text: jdText,
+  }, { timeout: 120000 });
   return data;
 }
 

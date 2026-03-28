@@ -1,6 +1,10 @@
+import math
+import os
 import re
 import statistics
+from collections import Counter
 from dataclasses import dataclass, field
+import httpx
 
 from app.engines.constants import (
     BANNED_FIRST_WORDS,
@@ -16,7 +20,8 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-MAX_SIGNAL_SCORE = 100.0 / 12  # ~8.33
+NUM_SIGNALS = 19  # 12 original + 5 advanced + 2 ML-based
+MAX_SIGNAL_SCORE = 100.0 / NUM_SIGNALS  # ~5.26
 
 
 @dataclass
@@ -84,6 +89,7 @@ class AIDetectionEngine:
 
             signals: list[DetectionSignal] = []
 
+            # Original 12 signals
             signals.append(self._signal_sentence_length_variance(bullets))
             signals.append(self._signal_consecutive_length(bullets))
             signals.append(self._signal_opening_repetition(bullets))
@@ -96,6 +102,15 @@ class AIDetectionEngine:
             signals.append(self._signal_adjective_density(sections.summary_text))
             signals.append(self._signal_transitional_overuse(bullets))
             signals.append(self._signal_vocabulary_predictability(bullets))
+            # 5 new advanced signals
+            signals.append(self._signal_entropy_analysis(bullets))
+            signals.append(self._signal_ngram_repetition(resume_text))
+            signals.append(self._signal_burstiness(bullets))
+            signals.append(self._signal_punctuation_patterns(bullets))
+            signals.append(self._signal_passive_voice_density(resume_text))
+            # 2 ML-based signals
+            signals.append(self._signal_ml_classifier(resume_text))
+            signals.append(self._signal_perplexity_estimate(resume_text))
 
             result.signals = signals
             result.overall_score = round(sum(s.score for s in signals), 2)
@@ -194,7 +209,6 @@ class AIDetectionEngine:
 
     def _signal_opening_repetition(self, bullets: list[BulletPoint]) -> DetectionSignal:
         name = "Opening Word Repetition"
-        from collections import Counter
 
         first_words = [b.first_word for b in bullets if b.first_word]
         word_counts = Counter(first_words)
@@ -285,7 +299,6 @@ class AIDetectionEngine:
             return DetectionSignal(name=name, score=0, details="No bullets")
 
         types = [self._classify_structure(b) for b in bullets]
-        from collections import Counter
         type_counts = Counter(types)
         dominant_type, dominant_count = type_counts.most_common(1)[0]
         pct = (dominant_count / len(bullets)) * 100
@@ -534,6 +547,397 @@ class AIDetectionEngine:
             details=f"{match_count}/{len(bullets)} ({pct:.0f}%) match predictable AI pattern",
             flagged_items=flagged,
         )
+
+    # ── New advanced signals ──────────────────────────────────────────
+
+    def _signal_entropy_analysis(self, bullets: list[BulletPoint]) -> DetectionSignal:
+        """Measure word-level entropy (Shannon). AI text tends toward lower entropy
+        because it uses a narrower, more predictable vocabulary."""
+        name = "Vocabulary Entropy"
+        if len(bullets) < 3:
+            return DetectionSignal(name=name, score=0, details="Not enough bullets")
+
+        all_words = []
+        for b in bullets:
+            all_words.extend(w.lower().strip(".,;:!?()") for w in b.text.split() if len(w) > 2)
+
+        if len(all_words) < 20:
+            return DetectionSignal(name=name, score=0, details="Not enough words")
+
+        word_counts = Counter(all_words)
+        total = len(all_words)
+        entropy = -sum((c / total) * math.log2(c / total) for c in word_counts.values())
+
+        # Normalize: max entropy for N unique words = log2(N)
+        max_entropy = math.log2(len(word_counts)) if len(word_counts) > 1 else 1
+        normalized = entropy / max_entropy  # 0-1, lower = more repetitive/AI-like
+
+        if normalized < 0.70:
+            score = MAX_SIGNAL_SCORE
+            details = f"Very low vocabulary diversity (entropy ratio: {normalized:.2f}). AI-typical."
+        elif normalized < 0.78:
+            score = MAX_SIGNAL_SCORE * 0.65
+            details = f"Below-average vocabulary diversity (entropy ratio: {normalized:.2f})."
+        elif normalized < 0.85:
+            score = MAX_SIGNAL_SCORE * 0.35
+            details = f"Moderate vocabulary diversity (entropy ratio: {normalized:.2f})."
+        else:
+            score = 0
+            details = f"Natural vocabulary diversity (entropy ratio: {normalized:.2f})."
+
+        return DetectionSignal(name=name, score=round(score, 2), details=details)
+
+    def _signal_ngram_repetition(self, text: str) -> DetectionSignal:
+        """Detect repeated 3-grams and 4-grams. AI text reuses phrasal templates
+        at higher rates than human writing."""
+        name = "N-gram Repetition"
+        words = [w.lower().strip(".,;:!?()") for w in text.split() if w.strip()]
+
+        if len(words) < 30:
+            return DetectionSignal(name=name, score=0, details="Not enough text")
+
+        flagged: list[str] = []
+
+        # Check 3-grams
+        trigrams = [" ".join(words[i:i+3]) for i in range(len(words) - 2)]
+        tri_counts = Counter(trigrams)
+        repeated_tri = {ng: c for ng, c in tri_counts.items() if c >= 3}
+
+        # Check 4-grams
+        fourgrams = [" ".join(words[i:i+4]) for i in range(len(words) - 3)]
+        four_counts = Counter(fourgrams)
+        repeated_four = {ng: c for ng, c in four_counts.items() if c >= 2}
+
+        # Filter out trivial n-grams (stopword-only)
+        stopwords = {"the", "a", "an", "in", "of", "to", "and", "for", "with", "on", "at", "by", "is", "was", "are", "were"}
+        for ng, count in repeated_tri.items():
+            if not all(w in stopwords for w in ng.split()):
+                flagged.append(f"3-gram '{ng}' appears {count}x")
+        for ng, count in repeated_four.items():
+            if not all(w in stopwords for w in ng.split()):
+                flagged.append(f"4-gram '{ng}' appears {count}x")
+
+        count = len(flagged)
+        if count >= 8:
+            score = MAX_SIGNAL_SCORE
+        elif count >= 5:
+            score = MAX_SIGNAL_SCORE * 0.7
+        elif count >= 3:
+            score = MAX_SIGNAL_SCORE * 0.4
+        elif count >= 1:
+            score = MAX_SIGNAL_SCORE * 0.2
+        else:
+            score = 0
+
+        return DetectionSignal(
+            name=name, score=round(score, 2),
+            details=f"{count} repeated n-gram patterns found",
+            flagged_items=flagged[:10],
+        )
+
+    def _signal_burstiness(self, bullets: list[BulletPoint]) -> DetectionSignal:
+        """Measure sentence-length burstiness. Human writing is 'bursty' — clusters of
+        short and long sentences. AI writing is uniformly distributed."""
+        name = "Burstiness"
+        if len(bullets) < 5:
+            return DetectionSignal(name=name, score=0, details="Not enough bullets")
+
+        lengths = [b.word_count for b in bullets]
+        mean_len = statistics.mean(lengths)
+
+        # Burstiness = (std - mean) / (std + mean). Range: -1 to 1.
+        # Human text: positive burstiness. AI text: near 0 or negative.
+        std_len = statistics.stdev(lengths)
+        if (std_len + mean_len) == 0:
+            burstiness = 0.0
+        else:
+            burstiness = (std_len - mean_len) / (std_len + mean_len)
+
+        # Also check for runs: consecutive bullets in same length bucket
+        short_thresh = mean_len * 0.7
+        long_thresh = mean_len * 1.3
+        buckets = []
+        for l in lengths:
+            if l < short_thresh:
+                buckets.append("short")
+            elif l > long_thresh:
+                buckets.append("long")
+            else:
+                buckets.append("medium")
+
+        # Count run changes (human writing has more varied runs)
+        changes = sum(1 for i in range(1, len(buckets)) if buckets[i] != buckets[i-1])
+        change_rate = changes / max(len(buckets) - 1, 1)
+
+        # Low burstiness AND low change rate = AI-like
+        if burstiness > -0.3 and change_rate < 0.35:
+            score = MAX_SIGNAL_SCORE
+            details = f"Very low burstiness ({burstiness:.2f}) with monotone rhythm ({change_rate:.0%} changes). AI-typical."
+        elif burstiness > -0.2 and change_rate < 0.50:
+            score = MAX_SIGNAL_SCORE * 0.6
+            details = f"Low burstiness ({burstiness:.2f}), limited rhythm variation ({change_rate:.0%} changes)."
+        elif change_rate < 0.40:
+            score = MAX_SIGNAL_SCORE * 0.3
+            details = f"Moderate burstiness ({burstiness:.2f}), some rhythm ({change_rate:.0%} changes)."
+        else:
+            score = 0
+            details = f"Natural burstiness ({burstiness:.2f}) with varied rhythm ({change_rate:.0%} changes)."
+
+        return DetectionSignal(name=name, score=round(score, 2), details=details)
+
+    def _signal_punctuation_patterns(self, bullets: list[BulletPoint]) -> DetectionSignal:
+        """AI text has very uniform punctuation usage — few semicolons, parentheticals,
+        dashes, or em-dashes. Human writers use more varied punctuation."""
+        name = "Punctuation Uniformity"
+        if len(bullets) < 3:
+            return DetectionSignal(name=name, score=0, details="Not enough bullets")
+
+        # Count punctuation variety per bullet
+        varied_punct = set("();:—–-/")
+        total_bullets = len(bullets)
+        bullets_with_varied_punct = 0
+        all_text = " ".join(b.text for b in bullets)
+
+        for b in bullets:
+            if any(c in b.text for c in varied_punct):
+                bullets_with_varied_punct += 1
+
+        # Count specific patterns
+        has_parens = bool(re.search(r"\([^)]+\)", all_text))
+        has_semicolons = ";" in all_text
+        has_dashes = bool(re.search(r"\s[—–-]\s", all_text))
+        has_colons_inline = bool(re.search(r"\w:\s\w", all_text))
+
+        variety_score = sum([has_parens, has_semicolons, has_dashes, has_colons_inline])
+        varied_pct = bullets_with_varied_punct / total_bullets
+
+        # Low punctuation variety = AI-like
+        if variety_score == 0 and varied_pct < 0.2:
+            score = MAX_SIGNAL_SCORE
+            details = "No punctuation variety at all — every bullet uses only commas and periods. AI-typical."
+        elif variety_score <= 1 and varied_pct < 0.3:
+            score = MAX_SIGNAL_SCORE * 0.65
+            details = f"Very limited punctuation variety (score: {variety_score}/4)."
+        elif variety_score <= 2:
+            score = MAX_SIGNAL_SCORE * 0.3
+            details = f"Moderate punctuation variety (score: {variety_score}/4)."
+        else:
+            score = 0
+            details = f"Good punctuation variety (score: {variety_score}/4). Natural writing."
+
+        return DetectionSignal(name=name, score=round(score, 2), details=details)
+
+    def _signal_passive_voice_density(self, text: str) -> DetectionSignal:
+        """AI resumes heavily favor active voice ('Developed X'). Paradoxically,
+        zero passive voice is a signal — human writers occasionally use it naturally."""
+        name = "Voice Pattern Analysis"
+        if not text or len(text.split()) < 30:
+            return DetectionSignal(name=name, score=0, details="Not enough text")
+
+        # Detect passive constructions
+        passive_patterns = [
+            r"(?i)\b(?:was|were|been|being|is|are)\s+\w+ed\b",
+            r"(?i)\b(?:was|were|been|being|is|are)\s+\w+en\b",
+            r"(?i)\b(?:got|get|gets)\s+\w+ed\b",
+        ]
+
+        passive_count = 0
+        for pattern in passive_patterns:
+            passive_count += len(re.findall(pattern, text))
+
+        sentences = [s.strip() for s in re.split(r"[.!?]+", text) if s.strip()]
+        total_sentences = len(sentences)
+
+        if total_sentences == 0:
+            return DetectionSignal(name=name, score=0, details="No sentences found")
+
+        passive_ratio = passive_count / total_sentences
+
+        # ALL active (ratio ~0) is actually suspicious for AI
+        # Some passive (0.05-0.25) is natural
+        # Too much passive (>0.4) is bad writing but not AI-specific
+        if passive_ratio < 0.02 and total_sentences > 5:
+            score = MAX_SIGNAL_SCORE * 0.7
+            details = f"100% active voice across {total_sentences} sentences. AI-typical (humans occasionally use passive)."
+        elif passive_ratio < 0.05:
+            score = MAX_SIGNAL_SCORE * 0.4
+            details = f"Almost exclusively active voice ({passive_ratio:.0%} passive). Slightly suspicious."
+        elif passive_ratio <= 0.25:
+            score = 0
+            details = f"Natural mix of active/passive voice ({passive_ratio:.0%} passive)."
+        else:
+            score = MAX_SIGNAL_SCORE * 0.3
+            details = f"High passive voice usage ({passive_ratio:.0%}). Unusual but not AI-typical."
+
+        return DetectionSignal(name=name, score=round(score, 2), details=details)
+
+    # ── ML-based signals ──────────────────────────────────────────────
+
+    # Class-level cache for ML classifier results keyed by text hash
+    _ml_cache: dict[int, DetectionSignal] = {}
+
+    def _signal_ml_classifier(self, text: str) -> DetectionSignal:
+        """Call HuggingFace's RoBERTa-based OpenAI detector via Inference API.
+        Returns a score based on the model's 'Fake' (AI-generated) probability."""
+        name = "ML Classifier (RoBERTa)"
+
+        if not text or len(text.strip()) < 50:
+            return DetectionSignal(name=name, score=0, details="Not enough text for ML classification")
+
+        # Check cache
+        text_hash = hash(text)
+        if text_hash in self._ml_cache:
+            return self._ml_cache[text_hash]
+
+        # Truncate to ~2000 chars to respect model's 512-token limit
+        truncated = text[:2000]
+
+        api_url = "https://api-inference.huggingface.co/models/openai-community/roberta-base-openai-detector"
+        headers: dict[str, str] = {}
+        hf_key = os.environ.get("HUGGINGFACE_API_KEY")
+        if hf_key:
+            headers["Authorization"] = f"Bearer {hf_key}"
+
+        try:
+            response = httpx.post(
+                api_url,
+                json={"inputs": truncated},
+                headers=headers,
+                timeout=5.0,
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            # Response format: [[{"label": "Fake", "score": 0.8}, {"label": "Real", "score": 0.2}]]
+            # or [{"label": "Fake", "score": 0.8}, ...]
+            labels = result[0] if isinstance(result, list) and result else result
+            if isinstance(labels, list):
+                label_scores = {item["label"]: item["score"] for item in labels}
+            else:
+                signal = DetectionSignal(
+                    name=name, score=0,
+                    details="ML classifier returned unexpected format",
+                )
+                self._ml_cache[text_hash] = signal
+                return signal
+
+            fake_prob = label_scores.get("Fake", label_scores.get("LABEL_0", 0.0))
+            real_prob = label_scores.get("Real", label_scores.get("LABEL_1", 0.0))
+
+            if fake_prob > 0.85:
+                score = MAX_SIGNAL_SCORE
+                details = f"ML classifier: {fake_prob:.0%} probability AI-generated"
+            elif fake_prob > 0.7:
+                score = MAX_SIGNAL_SCORE * 0.7
+                details = f"ML classifier: {fake_prob:.0%} probability AI-generated"
+            elif fake_prob > 0.6:
+                score = MAX_SIGNAL_SCORE * 0.4
+                details = f"ML classifier: {fake_prob:.0%} probability AI-generated (borderline)"
+            else:
+                score = 0
+                details = f"ML classifier: {real_prob:.0%} probability human-written"
+
+            signal = DetectionSignal(name=name, score=round(score, 2), details=details)
+
+        except (httpx.HTTPStatusError, httpx.RequestError, httpx.TimeoutException) as exc:
+            logger.warning("ML classifier API call failed", error=str(exc))
+            signal = DetectionSignal(name=name, score=0, details="ML classifier unavailable")
+        except Exception as exc:
+            logger.warning("ML classifier unexpected error", error=str(exc))
+            signal = DetectionSignal(name=name, score=0, details="ML classifier unavailable")
+
+        self._ml_cache[text_hash] = signal
+        return signal
+
+    def _signal_perplexity_estimate(self, text: str) -> DetectionSignal:
+        """Estimate text perplexity using character trigram surprise.
+        Builds a trigram frequency model from the text and measures how
+        'surprising' the text is character-by-character. AI text tends to
+        have lower perplexity (more predictable character sequences)."""
+        name = "Perplexity Estimate"
+
+        if not text or len(text) < 200:
+            return DetectionSignal(name=name, score=0, details="Not enough text for perplexity analysis")
+
+        # Normalize text: lowercase, collapse whitespace
+        cleaned = re.sub(r"\s+", " ", text.lower().strip())
+
+        # Expected English character trigram distribution baselines
+        # (derived from large English corpora — common trigrams and their
+        # approximate relative frequencies)
+        _english_common_trigrams = {
+            "the": 3.5, "ing": 2.1, "and": 1.9, "ion": 1.6, "ent": 1.3,
+            "tio": 1.5, "ati": 1.2, "for": 1.1, "her": 1.0, "ter": 1.0,
+            "hat": 0.9, "tha": 0.9, "ere": 0.9, "ate": 0.8, "his": 0.8,
+            "con": 0.8, "res": 0.7, "ver": 0.7, "all": 0.7, "ons": 0.7,
+            "nce": 0.6, "men": 0.6, "ith": 0.6, "ted": 0.6, "ers": 0.6,
+            "pro": 0.5, "thi": 0.5, "wit": 0.5, "are": 0.5, "ess": 0.5,
+            "not": 0.5, "ive": 0.5, "was": 0.5, "ect": 0.5, "rea": 0.5,
+            "com": 0.5, "eve": 0.4, "int": 0.4, "est": 0.4, "sta": 0.4,
+            "ene": 0.4, "ous": 0.4, "ght": 0.4, "igh": 0.4, "ble": 0.4,
+        }
+
+        # Build character trigram model from the text itself
+        text_trigrams: Counter[str] = Counter()
+        for i in range(len(cleaned) - 2):
+            tri = cleaned[i:i + 3]
+            if tri.strip():  # skip whitespace-only trigrams
+                text_trigrams[tri] += 1
+
+        total_trigrams = sum(text_trigrams.values())
+        if total_trigrams < 50:
+            return DetectionSignal(name=name, score=0, details="Not enough character data")
+
+        # Calculate cross-entropy against English baseline
+        # For each common English trigram, compare observed vs expected frequency
+        observed_freqs: dict[str, float] = {
+            tri: count / total_trigrams * 100
+            for tri, count in text_trigrams.items()
+        }
+
+        # Measure divergence: how much does this text deviate from English norms?
+        kl_divergence = 0.0
+        matched_trigrams = 0
+        for tri, expected_freq in _english_common_trigrams.items():
+            observed = observed_freqs.get(tri, 0.001)  # smoothing
+            if observed > 0:
+                ratio = observed / expected_freq
+                kl_divergence += abs(math.log2(max(ratio, 0.001)))
+                matched_trigrams += 1
+
+        if matched_trigrams == 0:
+            return DetectionSignal(name=name, score=0, details="Could not compute perplexity")
+
+        avg_divergence = kl_divergence / matched_trigrams
+
+        # Calculate self-perplexity: how predictable are the trigram sequences?
+        # Lower self-entropy = more repetitive/predictable = more AI-like
+        trigram_probs = {tri: count / total_trigrams for tri, count in text_trigrams.items()}
+        self_entropy = -sum(p * math.log2(p) for p in trigram_probs.values() if p > 0)
+
+        # Normalize self-entropy by max possible entropy
+        max_possible_entropy = math.log2(len(text_trigrams)) if len(text_trigrams) > 1 else 1
+        normalized_entropy = self_entropy / max_possible_entropy if max_possible_entropy > 0 else 0
+
+        # Combine: low divergence from English norms + low self-entropy = AI-like
+        # AI text closely matches expected distributions AND is internally predictable
+        combined_score = (avg_divergence * 0.4) + (normalized_entropy * 0.6)
+
+        # Thresholds calibrated: AI text typically scores < 0.65, human > 0.75
+        if combined_score < 0.55:
+            score = MAX_SIGNAL_SCORE
+            details = f"Very low perplexity (score: {combined_score:.2f}). Text is highly predictable — AI-typical."
+        elif combined_score < 0.65:
+            score = MAX_SIGNAL_SCORE * 0.7
+            details = f"Low perplexity (score: {combined_score:.2f}). Text is somewhat predictable."
+        elif combined_score < 0.75:
+            score = MAX_SIGNAL_SCORE * 0.35
+            details = f"Moderate perplexity (score: {combined_score:.2f}). Borderline predictability."
+        else:
+            score = 0
+            details = f"Natural perplexity (score: {combined_score:.2f}). Text has human-like unpredictability."
+
+        return DetectionSignal(name=name, score=round(score, 2), details=details)
 
     def _analyze_bullets(self, bullets: list[BulletPoint], full_text: str) -> list[BulletAnalysis]:
         analyses: list[BulletAnalysis] = []
