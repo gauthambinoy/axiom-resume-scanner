@@ -11,8 +11,12 @@ from app.models.schemas import (
     StatsResponse,
     KeywordExtractionResponse,
     BannedPhrasesResponse,
+    HumanizeRequest,
+    HumanizeResponse,
     ErrorResponse,
 )
+import os
+
 from app.engines.constants import BANNED_PHRASES, BANNED_EXTENDED_WORDS, AI_STRUCTURE_PATTERNS
 from app.engines.keyword_extractor import KeywordExtractor
 from app.api.dependencies import get_scan_service
@@ -112,10 +116,13 @@ async def health_check() -> HealthResponse:
     except Exception:
         pass
 
+    # Humanizer works without API key (rule-based), but ML layer needs HF key
+    humanizer_ok = True  # Always available — rule-based transforms need no API key
+
     return HealthResponse(
         status="healthy",
-        version="1.0.0",
-        engines={"spacy": spacy_ok, "nltk": nltk_ok},
+        version="2.0.0",
+        engines={"spacy": spacy_ok, "nltk": nltk_ok, "humanizer": humanizer_ok},
     )
 
 
@@ -150,6 +157,29 @@ async def extract_keywords(
         certifications=result.certifications,
         all_keywords=result.all_keywords,
         priority_keywords=result.priority_keywords,
+    )
+
+
+@router.post(
+    "/humanize",
+    response_model=HumanizeResponse,
+    summary="Humanize AI-detected resume text",
+    description="Rewrites AI-flagged resume text to be undetectable by AI detectors using Claude API",
+    responses={400: {"model": ErrorResponse}, 429: {"model": ErrorResponse}},
+)
+async def humanize_text(
+    request: HumanizeRequest,
+    service: ScanService = Depends(get_scan_service),
+) -> HumanizeResponse:
+    result = await service.humanize(request.resume_text, request.jd_text)
+    return HumanizeResponse(
+        original_text=result.original_text,
+        humanized_text=result.humanized_text,
+        original_ai_score=result.original_ai_score,
+        new_ai_score=result.new_ai_score,
+        improvement=result.improvement,
+        retries_used=result.retries_used,
+        success=result.success,
     )
 
 

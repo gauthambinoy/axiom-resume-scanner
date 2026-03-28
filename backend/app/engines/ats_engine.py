@@ -43,6 +43,14 @@ class ATSScoreResult:
 
 
 class ATSEngine:
+    def __init__(self) -> None:
+        self._nlp = None
+        try:
+            import spacy
+            self._nlp = spacy.load("en_core_web_sm")
+        except (OSError, ImportError):
+            pass
+
     def score(
         self,
         resume_text: str,
@@ -166,6 +174,21 @@ class ATSEngine:
             except re.error:
                 if canonical in text:
                     return True
+
+        # Semantic similarity fallback using spaCy vectors
+        if self._nlp and self._nlp.vocab.vectors.shape[0] > 0:
+            try:
+                kw_doc = self._nlp(kw_lower)
+                # Check against text words for semantic match
+                text_words = set(text.split())
+                for word in text_words:
+                    word_doc = self._nlp(word)
+                    if kw_doc.has_vector and word_doc.has_vector:
+                        similarity = kw_doc.similarity(word_doc)
+                        if similarity >= 0.80:
+                            return True
+            except Exception:
+                pass
 
         return False
 
@@ -317,19 +340,44 @@ class ATSEngine:
         return min(100, max(0, score)), warnings
 
     def _score_relevance(self, resume_text: str, jd_text: str) -> int:
+        tfidf_score = 0
+        semantic_score = 0
+
+        # Method 1: TF-IDF cosine similarity (with bigrams for better matching)
         try:
             from sklearn.feature_extraction.text import TfidfVectorizer
             from sklearn.metrics.pairwise import cosine_similarity
 
-            vectorizer = TfidfVectorizer(stop_words="english", max_features=500)
+            vectorizer = TfidfVectorizer(
+                stop_words="english",
+                max_features=1000,
+                ngram_range=(1, 2),  # Unigrams + bigrams for phrase-level matching
+                sublinear_tf=True,   # Apply log normalization for better term weighting
+            )
             tfidf_matrix = vectorizer.fit_transform([jd_text, resume_text])
-            similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
-            return min(100, max(0, round(similarity * 100)))
+            tfidf_score = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0] * 100
         except Exception:
             # Fallback: simple word overlap
             resume_words = set(resume_text.lower().split())
             jd_words = set(jd_text.lower().split())
-            if not jd_words:
-                return 0
-            overlap = len(resume_words & jd_words)
-            return min(100, round((overlap / len(jd_words)) * 100))
+            if jd_words:
+                overlap = len(resume_words & jd_words)
+                tfidf_score = (overlap / len(jd_words)) * 100
+
+        # Method 2: Semantic similarity via spaCy vectors
+        if self._nlp:
+            try:
+                resume_doc = self._nlp(resume_text[:5000])  # Limit for performance
+                jd_doc = self._nlp(jd_text[:3000])
+                if resume_doc.has_vector and jd_doc.has_vector:
+                    semantic_score = resume_doc.similarity(jd_doc) * 100
+            except Exception:
+                pass
+
+        # Blend: 60% TF-IDF (precise matching) + 40% semantic (meaning matching)
+        if semantic_score > 0:
+            blended = tfidf_score * 0.6 + semantic_score * 0.4
+        else:
+            blended = tfidf_score
+
+        return min(100, max(0, round(blended)))

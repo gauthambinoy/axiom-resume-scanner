@@ -3,10 +3,14 @@ BANNED_FIRST_WORDS: set[str] = {
     "delivered", "configured", "resolved", "coordinated", "maintained", "supported",
     "led", "established", "automated", "improved", "worked", "helped", "assisted",
     "utilized", "leveraged", "spearheaded", "oversaw", "championed", "drove",
-    "enabled", "handled", "performed", "executed", "orchestrated",
+    "enabled", "handled", "performed", "executed", "orchestrated", "architected",
+    "engineered", "optimized", "streamlined", "facilitated", "pioneered",
+    "transformed", "revamped", "consolidated", "modernized", "integrated",
+    "formulated", "devised", "instituted", "cultivated", "strengthened",
 }
 
 BANNED_PHRASES: list[str] = [
+    # Classic corporate filler
     "responsible for", "in charge of", "helped with", "worked on", "involved in",
     "passionate about", "results-driven", "dynamic professional", "dedicated team player",
     "detail-oriented", "seamless integration", "end-to-end solution", "drive continuous improvement",
@@ -20,13 +24,58 @@ BANNED_PHRASES: list[str] = [
     "industry-leading", "next-generation", "game-changing", "synergy",
     "holistic approach", "paradigm shift", "core competency", "value proposition",
     "strategic initiative", "operational excellence", "thought leadership",
+    # AI-generated resume clichés (expanded)
+    "resulting in a", "leading to a", "contributing to a", "which resulted in",
+    "spearheaded the development", "played a pivotal role", "instrumental in",
+    "fostering a culture", "driving innovation", "ensuring compliance",
+    "leveraging cutting-edge", "leveraging advanced", "leveraging modern",
+    "utilizing industry-leading", "employing state-of-the-art",
+    "adept at", "well-versed in", "seasoned professional",
+    "track record of success", "demonstrated ability", "proven ability",
+    "extensive experience", "deep understanding", "keen eye for",
+    "go-to person", "wear many hats", "hit the ground running",
+    "move the needle", "low-hanging fruit", "circle back",
+    "touch base", "align on", "north star",
+    "ensuring optimal", "ensuring high-quality", "ensuring timely delivery",
+    "while simultaneously", "while maintaining", "while ensuring",
+    "served as a", "acted as a", "functioned as a",
+    "tasked with", "charged with", "entrusted with",
+    "effectively managed", "successfully delivered", "efficiently handled",
+    "significantly improved", "dramatically reduced", "substantially increased",
+    "greatly enhanced", "markedly improved", "notably increased",
+    "wide range of", "broad spectrum of", "diverse set of",
+    "key contributor", "key driver", "key enabler",
+    "from the ground up", "from scratch", "end-to-end",
+    "in a timely manner", "on a daily basis", "on an ongoing basis",
+    "stakeholder management", "change management", "risk mitigation",
+    "continuous improvement", "process optimization", "workflow optimization",
+    "digital transformation", "agile transformation",
+    "subject matter expert", "domain expertise",
 ]
 
 BANNED_EXTENDED_WORDS: set[str] = {
+    # Original AI-telltale words
     "delve", "pivotal", "intricate", "showcasing", "synergy", "harnessed",
     "facilitated", "holistic", "transformative", "meticulous", "revolutionized",
     "realm", "landscape", "paradigm", "ecosystem", "proactively", "strategically",
     "comprehensive", "streamlined", "utilized", "furthermore", "moreover", "additionally",
+    # Expanded AI vocabulary fingerprint
+    "leveraged", "orchestrated", "spearheaded", "conceptualized", "architected",
+    "overarching", "multifaceted", "nuanced", "robust", "scalable",
+    "synergistic", "impactful", "actionable", "operationalized", "optimized",
+    "innovated", "ideated", "catalyzed", "galvanized", "crystallized",
+    "underscored", "underlined", "epitomized", "exemplified", "embodied",
+    "navigated", "traversed", "circumvented", "ameliorated", "augmented",
+    "bolstered", "buttressed", "fortified", "engendered", "envisioned",
+    "cultivated", "fostered", "championed", "evangelized", "propelled",
+    "cornerstone", "linchpin", "bedrock", "underpinning", "nexus",
+    "tapestry", "mosaic", "crucible", "zenith", "pinnacle",
+    "endeavor", "undertaking", "trajectory", "juxtaposition", "dichotomy",
+    "plethora", "myriad", "gamut", "repertoire", "arsenal",
+    "seamlessly", "meticulously", "rigorously", "diligently", "astutely",
+    "adeptly", "proficiently", "deftly", "efficaciously", "judiciously",
+    "commendably", "laudably", "notably", "markedly", "substantively",
+    "whilst", "henceforth", "thereof", "therein", "whereby",
 }
 
 AI_STRUCTURE_PATTERNS: list[str] = [
@@ -35,12 +84,26 @@ AI_STRUCTURE_PATTERNS: list[str] = [
     r"(?i)this\s+(allowed|enabled)\s+\w+\s+to",
     r"(?i)in\s+order\s+to\s+\w+",
     r"(?i)^(furthermore|moreover|additionally),?\s",
+    # Expanded AI sentence patterns
+    r"(?i)by\s+leveraging\s+\w+",
+    r"(?i)resulting\s+in\s+a?\s*\d+",
+    r"(?i)leading\s+to\s+a?\s*\d+",
+    r"(?i)contributing\s+to\s+a?\s*\d+",
+    r"(?i)which\s+(led|resulted|contributed)\s+to",
+    r"(?i)thereby\s+(reducing|increasing|improving|enhancing|optimizing)",
+    r"(?i)ensuring\s+(seamless|optimal|efficient|effective|high-quality)",
+    r"(?i)playing\s+a\s+(key|pivotal|crucial|critical|vital)\s+role",
+    r"(?i)served\s+as\s+(the|a)\s+(primary|key|main|lead)",
+    r"(?i)tasked\s+with\s+(developing|building|creating|managing|leading)",
+    r"(?i)(significantly|dramatically|substantially|greatly|markedly)\s+(improved|reduced|increased|enhanced|boosted)",
 ]
 
 ROUND_NUMBERS: set[int] = {20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95}
 
 TRANSITIONAL_OPENERS: set[str] = {
     "additionally", "furthermore", "moreover", "subsequently", "consequently", "notably",
+    "correspondingly", "likewise", "similarly", "alternatively", "conversely",
+    "nonetheless", "nevertheless", "henceforth", "thereby", "whereupon",
 }
 
 RESUME_SECTIONS: list[str] = [

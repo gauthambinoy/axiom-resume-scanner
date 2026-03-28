@@ -37,13 +37,23 @@ export function ScannerPage() {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleScan();
   };
 
+  const handleRescan = async (humanizedText: string) => {
+    setResumeText(humanizedText);
+    await scan(humanizedText, jdText);
+  };
+
   if (scanResult) {
     return (
       <div className="max-w-5xl mx-auto px-6 py-10">
         <button onClick={reset} className="flex items-center gap-1.5 text-xs text-muted hover:text-text mb-8 transition">
           <ArrowLeft size={12} /> New scan
         </button>
-        <ResultsDashboard result={scanResult} />
+        <ResultsDashboard
+          result={scanResult}
+          resumeText={resumeText}
+          jdText={jdText}
+          onRescan={handleRescan}
+        />
       </div>
     );
   }

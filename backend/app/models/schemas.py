@@ -164,6 +164,21 @@ class BannedPhrasesResponse(BaseModel):
     ai_patterns: list[str] = Field(default_factory=list)
 
 
+class HumanizeRequest(BaseModel):
+    resume_text: str = Field(..., min_length=50, max_length=15000, description="Resume text to humanize")
+    jd_text: str = Field("", max_length=8000, description="Optional: job description to preserve relevant keywords")
+
+
+class HumanizeResponse(BaseModel):
+    original_text: str = Field(..., description="Original input text")
+    humanized_text: str = Field(..., description="Rewritten human-sounding text")
+    original_ai_score: float = Field(0, description="AI detection score before humanization")
+    new_ai_score: float = Field(0, description="AI detection score after humanization")
+    improvement: float = Field(0, description="Score reduction (positive = better)")
+    retries_used: int = Field(0, description="Number of retry iterations used")
+    success: bool = Field(False, description="Whether the text passed AI detection (<30)")
+
+
 class ErrorResponse(BaseModel):
     error_code: str = Field(..., description="Machine-readable error code")
     message: str = Field(..., description="Human-readable error message")

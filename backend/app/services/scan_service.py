@@ -8,6 +8,7 @@ from app.engines.ai_detection_engine import AIDetectionEngine
 from app.engines.fix_generator import FixGenerator
 from app.engines.pdf_parser import PDFParser
 from app.engines.scoring import ScoreNormalizer
+from app.engines.humanizer_engine import HumanizerEngine, HumanizeRequest, HumanizeResult
 from app.models.schemas import (
     ScanResponse,
     ATSScoreResponse,
@@ -37,6 +38,7 @@ class ScanService:
         self._fix_generator = FixGenerator()
         self._pdf_parser = PDFParser()
         self._score_normalizer = ScoreNormalizer()
+        self._humanizer = HumanizerEngine()
         self._scan_count = 0
         self._total_ats = 0.0
         self._total_ai = 0.0
@@ -167,6 +169,39 @@ class ScanService:
             improved_keywords=list(before_missing - after_missing),
             still_missing=list(after_missing),
         )
+
+    async def humanize(self, resume_text: str, jd_text: str = "") -> HumanizeResult:
+        """Run AI detection on the text, then humanize flagged content."""
+        cleaned_resume = clean_text(resume_text)
+
+        # First, analyze to find what needs fixing
+        sections = self._section_parser.parse(cleaned_resume)
+        ai_result = self._ai_engine.analyze(cleaned_resume, sections, sections.bullets)
+
+        # Build humanize request with specific signal data
+        flagged_signals = [
+            f"{s.name}: {s.details}"
+            for s in ai_result.signals
+            if s.score >= 2.0
+        ]
+        flagged_phrases = []
+        flagged_words = []
+        for s in ai_result.signals:
+            if s.name == "Banned Phrase Density":
+                flagged_phrases = s.flagged_items
+            elif s.name == "Banned Word Density":
+                flagged_words = s.flagged_items
+
+        request = HumanizeRequest(
+            text=cleaned_resume,
+            ai_score=ai_result.overall_score,
+            flagged_signals=flagged_signals,
+            flagged_phrases=flagged_phrases,
+            flagged_words=flagged_words,
+            jd_text=jd_text,
+        )
+
+        return await self._humanizer.humanize(request)
 
     def get_stats(self) -> dict[str, int | float]:
         return {
