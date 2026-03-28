@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, X } from 'lucide-react';
+import { Upload, File, X } from 'lucide-react';
 import { formatFileSize } from '../../utils/formatters';
 
 interface Props {
@@ -12,9 +12,7 @@ interface Props {
 
 export function FileUpload({ file, onFile, onRemove, error }: Props) {
   const onDrop = useCallback(
-    (accepted: File[]) => {
-      if (accepted[0]) onFile(accepted[0]);
-    },
+    (accepted: File[]) => { if (accepted[0]) onFile(accepted[0]); },
     [onFile]
   );
 
@@ -30,13 +28,17 @@ export function FileUpload({ file, onFile, onRemove, error }: Props) {
 
   if (file) {
     return (
-      <div className="flex items-center gap-3 p-3 bg-surface border border-surface-light rounded-xl">
-        <FileText size={20} className="text-primary" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm truncate">{file.name}</p>
-          <p className="text-xs text-muted">{formatFileSize(file.size)}</p>
+      <div className="flex items-center gap-3 px-4 py-3 bg-bg border border-border rounded-xl">
+        <div className="w-8 h-8 rounded-lg bg-primary-dim flex items-center justify-center">
+          <File size={14} className="text-primary" />
         </div>
-        <button onClick={onRemove} className="text-muted hover:text-danger"><X size={18} /></button>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium truncate">{file.name}</p>
+          <p className="text-[10px] text-muted">{formatFileSize(file.size)}</p>
+        </div>
+        <button onClick={onRemove} className="p-1 rounded-md hover:bg-surface-light text-muted hover:text-danger transition">
+          <X size={14} />
+        </button>
       </div>
     );
   }
@@ -45,18 +47,16 @@ export function FileUpload({ file, onFile, onRemove, error }: Props) {
     <div>
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition ${
-          isDragActive ? 'border-primary bg-primary/5' : 'border-surface-light hover:border-muted'
+        className={`border border-dashed rounded-xl px-6 py-10 text-center cursor-pointer transition-all ${
+          isDragActive ? 'border-primary bg-primary-dim' : 'border-border hover:border-border-light'
         }`}
       >
         <input {...getInputProps()} />
-        <Upload size={24} className="mx-auto mb-2 text-muted" />
-        <p className="text-sm text-muted">
-          {isDragActive ? 'Drop your resume here' : 'Drag & drop a PDF or DOCX, or click to browse'}
-        </p>
-        <p className="text-xs text-muted/60 mt-1">Max 10MB</p>
+        <Upload size={18} className="mx-auto mb-2 text-muted" />
+        <p className="text-xs text-muted">Drop PDF or DOCX here</p>
+        <p className="text-[10px] text-muted/50 mt-1">Max 10MB</p>
       </div>
-      {error && <p className="text-xs text-danger mt-1">{error}</p>}
+      {error && <p className="text-[11px] text-danger mt-1">{error}</p>}
     </div>
   );
 }

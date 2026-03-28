@@ -7,13 +7,14 @@ import { ResultsDashboard } from '../Results/ResultsDashboard';
 import { useScan } from '../../hooks/useScan';
 import { useFileUpload } from '../../hooks/useFileUpload';
 import { validateResumeText, validateJDText } from '../../utils/validators';
+import { ArrowLeft, FileText, Type } from 'lucide-react';
 
 export function ScannerPage() {
   const [resumeText, setResumeText] = useState('');
   const [jdText, setJdText] = useState('');
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [jdError, setJdError] = useState<string | null>(null);
-  const [useFile, setUseFile] = useState(false);
+  const [mode, setMode] = useState<'text' | 'file'>('text');
 
   const { scanResult, isLoading, error, scan, scanWithFile, reset } = useScan();
   const { file, handleFile, removeFile, error: fileError } = useFileUpload();
@@ -21,11 +22,9 @@ export function ScannerPage() {
   const handleScan = async () => {
     setResumeError(null);
     setJdError(null);
-
     const jdErr = validateJDText(jdText);
     if (jdErr) { setJdError(jdErr); return; }
-
-    if (useFile && file) {
+    if (mode === 'file' && file) {
       await scanWithFile(file, jdText);
     } else {
       const rErr = validateResumeText(resumeText);
@@ -40,9 +39,9 @@ export function ScannerPage() {
 
   if (scanResult) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <button onClick={reset} className="mb-6 text-sm text-primary hover:underline">
-          &larr; New Scan
+      <div className="max-w-5xl mx-auto px-6 py-10">
+        <button onClick={reset} className="flex items-center gap-1.5 text-xs text-muted hover:text-text mb-8 transition">
+          <ArrowLeft size={12} /> New scan
         </button>
         <ResultsDashboard result={scanResult} />
       </div>
@@ -50,50 +49,59 @@ export function ScannerPage() {
   }
 
   return (
-    <section id="scanner" className="max-w-7xl mx-auto px-4 py-12" onKeyDown={handleKeyDown}>
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold mb-2">Scan Your Resume</h2>
-        <p className="text-muted">Paste any resume and any job description. We analyze both in under 3 seconds.</p>
+    <section id="scanner" className="max-w-5xl mx-auto px-6 py-16" onKeyDown={handleKeyDown}>
+      <div className="mb-8">
+        <p className="text-xs font-medium text-primary uppercase tracking-widest mb-2">Scanner</p>
+        <h2 className="text-xl font-semibold tracking-tight">Paste & scan</h2>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6 mb-6">
+      <div className="grid md:grid-cols-2 gap-5 mb-5">
         <div>
-          <div className="flex items-center gap-3 mb-3">
+          {/* Mode toggle */}
+          <div className="flex items-center gap-1 mb-3 p-0.5 bg-surface rounded-lg w-fit border border-border">
             <button
-              onClick={() => setUseFile(false)}
-              className={`text-sm px-3 py-1 rounded-lg ${!useFile ? 'bg-primary text-white' : 'text-muted hover:text-text'}`}
+              onClick={() => setMode('text')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition ${
+                mode === 'text' ? 'bg-surface-light text-text' : 'text-muted hover:text-text'
+              }`}
             >
-              Paste Text
+              <Type size={11} /> Text
             </button>
             <button
-              onClick={() => setUseFile(true)}
-              className={`text-sm px-3 py-1 rounded-lg ${useFile ? 'bg-primary text-white' : 'text-muted hover:text-text'}`}
+              onClick={() => setMode('file')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition ${
+                mode === 'file' ? 'bg-surface-light text-text' : 'text-muted hover:text-text'
+              }`}
             >
-              Upload File
+              <FileText size={11} /> File
             </button>
           </div>
-          {useFile ? (
+
+          {mode === 'file' ? (
             <FileUpload file={file} onFile={handleFile} onRemove={removeFile} error={fileError} />
           ) : (
             <ResumeInput value={resumeText} onChange={setResumeText} error={resumeError} />
           )}
         </div>
+
         <JDInput value={jdText} onChange={setJdText} error={jdError} />
       </div>
 
       <ScanButton
         onClick={handleScan}
         isLoading={isLoading}
-        disabled={(!useFile && !resumeText.trim()) || (useFile && !file) || !jdText.trim()}
+        disabled={(mode === 'text' && !resumeText.trim()) || (mode === 'file' && !file) || !jdText.trim()}
       />
 
       {error && (
-        <div className="mt-4 p-4 bg-danger/10 border border-danger/30 rounded-xl text-danger text-sm">
+        <div className="mt-3 px-4 py-3 bg-danger-dim border border-danger/20 rounded-xl text-danger text-xs">
           {error}
         </div>
       )}
 
-      <p className="text-center text-xs text-muted mt-3">Press Ctrl+Enter to scan</p>
+      <p className="text-center text-[10px] text-muted mt-3">
+        <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[9px]">Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[9px]">Enter</kbd> to scan
+      </p>
     </section>
   );
 }
