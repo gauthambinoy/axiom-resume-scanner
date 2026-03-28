@@ -30,6 +30,9 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "https://resumeshield.dev",
         "https://www.resumeshield.dev",
+        "https://resumeshield.vercel.app",
+        "https://resumeshield-gauthambinoy.vercel.app",
+        "https://resumeshield-git-main-gauthambinoy.vercel.app",
     ]
 
     # Sentry
