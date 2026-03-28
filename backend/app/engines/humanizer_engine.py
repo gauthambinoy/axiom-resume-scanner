@@ -435,6 +435,19 @@ def _replace_banned_phrases(text: str) -> str:
             if match.group()[0].isupper() and replacement:
                 replacement = replacement[0].upper() + replacement[1:]
             text = text[:match.start()] + replacement + text[match.end():]
+
+    # Clean up artifacts from empty replacements:
+    # - double spaces from removed phrases
+    text = re.sub(r"  +", " ", text)
+    # - orphan "a " or "an " before nothing or punctuation
+    text = re.sub(r"\ba\s+([.,;:!?])", r"\1", text)
+    text = re.sub(r"\ban\s+([.,;:!?])", r"\1", text)
+    # - "with a of" / "and of" / "a of" patterns from removed adjectives
+    text = re.sub(r"\bwith\s+a?\s*of\b", "with", text)
+    text = re.sub(r"\ba\s+of\b", "a history of", text)
+    text = re.sub(r"\band\s+\s+", "and ", text)
+    # - leading/trailing spaces per line
+    text = "\n".join(line.strip() for line in text.split("\n"))
     return text
 
 
