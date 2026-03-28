@@ -4,6 +4,8 @@
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green) ![React](https://img.shields.io/badge/React-18-blue) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![Docker](https://img.shields.io/badge/Docker-ready-blue)
 
+**Live Demo: [https://resumeshield.vercel.app](https://resumeshield.vercel.app)**
+
 ---
 
 ## The Problem
