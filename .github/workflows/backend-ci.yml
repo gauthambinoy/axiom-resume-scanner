@@ -1,0 +1,39 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths: ['backend/**']
+  pull_request:
+    branches: [main]
+    paths: ['backend/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - run: python -m spacy download en_core_web_sm
+
+      - run: python -c "import nltk; nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger_eng'); nltk.download('stopwords')"
+
+      - name: Run tests
+        run: pytest --cov=app --cov-report=xml --cov-fail-under=78 -v
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: backend/coverage.xml
