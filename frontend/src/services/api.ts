@@ -1,0 +1,99 @@
+import axios from 'axios';
+import type {
+  ScanResponse,
+  QuickScanResponse,
+  CompareResponse,
+  HealthResponse,
+  StatsResponse,
+  KeywordExtractionResponse,
+  BannedPhrasesResponse,
+} from '../types';
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || '/api/v1',
+  timeout: 30000,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+api.interceptors.request.use((config) => {
+  config.headers['X-Request-ID'] = crypto.randomUUID();
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.headers['retry-after'];
+      error.message = `Rate limit exceeded. Try again in ${retryAfter || 60} seconds.`;
+    } else if (error.response?.status >= 500) {
+      error.message = 'Server error. Please try again later.';
+    } else if (!error.response) {
+      error.message = 'Network error. Check your connection.';
+    }
+    return Promise.reject(error);
+  }
+);
+
+export async function scanResume(resumeText: string, jdText: string): Promise<ScanResponse> {
+  const { data } = await api.post<ScanResponse>('/scan', {
+    resume_text: resumeText,
+    jd_text: jdText,
+  });
+  return data;
+}
+
+export async function scanFile(file: File, jdText: string): Promise<ScanResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('jd_text', jdText);
+  const { data } = await api.post<ScanResponse>('/scan/file', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
+
+export async function quickScan(resumeText: string, jdText: string): Promise<QuickScanResponse> {
+  const { data } = await api.post<QuickScanResponse>('/scan/quick', {
+    resume_text: resumeText,
+    jd_text: jdText,
+  });
+  return data;
+}
+
+export async function compareScan(
+  resumeBefore: string,
+  resumeAfter: string,
+  jdText: string
+): Promise<CompareResponse> {
+  const { data } = await api.post<CompareResponse>('/compare', {
+    resume_before: resumeBefore,
+    resume_after: resumeAfter,
+    jd_text: jdText,
+  });
+  return data;
+}
+
+export async function getHealth(): Promise<HealthResponse> {
+  const { data } = await api.get<HealthResponse>('/health');
+  return data;
+}
+
+export async function getStats(): Promise<StatsResponse> {
+  const { data } = await api.get<StatsResponse>('/stats');
+  return data;
+}
+
+export async function getBannedPhrases(): Promise<BannedPhrasesResponse> {
+  const { data } = await api.get<BannedPhrasesResponse>('/banned-phrases');
+  return data;
+}
+
+export async function extractKeywords(jdText: string): Promise<KeywordExtractionResponse> {
+  const { data } = await api.get<KeywordExtractionResponse>('/keywords/extract', {
+    params: { jd_text: jdText },
+  });
+  return data;
+}
+
+export default api;
