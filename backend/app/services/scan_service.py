@@ -10,6 +10,7 @@ from app.engines.pdf_parser import PDFParser
 from app.engines.scoring import ScoreNormalizer
 from app.engines.humanizer_engine import HumanizerEngine, HumanizeRequest, HumanizeResult
 from app.engines.readability_engine import ReadabilityEngine
+from app.engines.grammar_engine import GrammarEngine
 from app.models.schemas import (
     ScanResponse,
     ATSScoreResponse,
@@ -26,6 +27,8 @@ from app.models.schemas import (
     CompareResponse,
     HeatmapItemResponse,
     TextAnalyticsResponse,
+    GrammarResponse,
+    GrammarIssueResponse,
 )
 from app.utils.text_processing import clean_text, compute_text_analytics
 from app.utils.logger import get_logger
@@ -44,6 +47,7 @@ class ScanService:
         self._score_normalizer = ScoreNormalizer()
         self._humanizer = HumanizerEngine()
         self._readability = ReadabilityEngine()
+        self._grammar = GrammarEngine()
         self._scan_count = 0
         self._total_ats = 0.0
         self._total_ai = 0.0
@@ -112,6 +116,10 @@ class ScanService:
             readability_result = self._readability.analyze(cleaned_resume)
             engines_used.append("readability_engine")
 
+            # Step 8b: Grammar analysis (all modes)
+            grammar_result = self._grammar.analyze(cleaned_resume)
+            engines_used.append("grammar_engine")
+
             # Step 9: Generate fixes (all modes)
             fixes = self._fix_generator.generate(ats_result, ai_result, sections)
             engines_used.append("fix_generator")
@@ -134,7 +142,7 @@ class ScanService:
             return self._build_response(
                 scan_id, ats_result, ai_result, fixes, combined,
                 elapsed_ms, engines_used, degraded, warnings, sections,
-                readability_result, text_analytics,
+                readability_result, text_analytics, grammar_result,
             )
 
         except Exception as e:
@@ -239,7 +247,7 @@ class ScanService:
     def _build_response(
         self, scan_id, ats_result, ai_result, fixes, combined,
         elapsed_ms, engines_used, degraded, warnings, sections,
-        readability_result=None, text_analytics=None,
+        readability_result=None, text_analytics=None, grammar_result=None,
     ) -> ScanResponse:
         # ATS response
         ats_resp = ATSScoreResponse(
@@ -369,6 +377,26 @@ class ScanService:
                 top_words=[list(t) for t in text_analytics.get("top_words", [])],
             )
 
+        # Grammar
+        grammar_resp = GrammarResponse()
+        if grammar_result is not None:
+            grammar_resp = GrammarResponse(
+                overall_score=grammar_result.overall_score,
+                issues=[
+                    GrammarIssueResponse(
+                        type=gi.type,
+                        severity=gi.severity,
+                        message=gi.message,
+                        context=gi.context,
+                        suggestion=gi.suggestion,
+                    ) for gi in grammar_result.issues
+                ],
+                issue_count=grammar_result.issue_count,
+                error_count=grammar_result.error_count,
+                warning_count=grammar_result.warning_count,
+                suggestion_count=grammar_result.suggestion_count,
+            )
+
         return ScanResponse(
             scan_id=scan_id,
             ats_score=ats_resp,
@@ -377,6 +405,7 @@ class ScanService:
             combined=combined_resp,
             readability=readability_resp,
             text_analytics=text_analytics_resp,
+            grammar=grammar_resp,
             metadata=ScanMetadata(
                 processing_time_ms=elapsed_ms,
                 engines_used=engines_used,

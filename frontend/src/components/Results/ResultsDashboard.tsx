@@ -9,6 +9,7 @@ import { ExportButton } from './ExportButton';
 import { HumanizePanel } from './HumanizePanel';
 import { DetectionHeatmap } from './DetectionHeatmap';
 import { WordAnalytics } from './WordAnalytics';
+import { GrammarPanel } from './GrammarPanel';
 import { formatMs } from '../../utils/formatters';
 import { Clock, TrendingUp } from 'lucide-react';
 
@@ -22,10 +23,11 @@ interface ResultsDashboardProps {
   result: ScanResponse;
   resumeText?: string;
   jdText?: string;
+  mode?: string;
   onRescan?: (text: string) => void;
 }
 
-export function ResultsDashboard({ result, resumeText, jdText, onRescan }: ResultsDashboardProps) {
+export function ResultsDashboard({ result, resumeText, jdText, mode = 'resume', onRescan }: ResultsDashboardProps) {
   const readiness = READINESS[result.combined.readiness_level] || READINESS.AT_RISK;
 
   return (
@@ -41,7 +43,7 @@ export function ResultsDashboard({ result, resumeText, jdText, onRescan }: Resul
             </span>
           </div>
         </div>
-        <ExportButton />
+        <ExportButton resumeText={resumeText || ''} jdText={jdText || ''} mode={mode} />
       </div>
 
       {/* Score Cards */}
@@ -91,6 +93,9 @@ export function ResultsDashboard({ result, resumeText, jdText, onRescan }: Resul
       {result.ai_score.heatmap && result.ai_score.heatmap.length > 0 && (
         <DetectionHeatmap heatmap={result.ai_score.heatmap} />
       )}
+
+      {/* Grammar & Writing Quality */}
+      <GrammarPanel grammar={result.grammar} />
 
       {/* Word Analytics */}
       <WordAnalytics analytics={result.text_analytics} readability={result.readability} />

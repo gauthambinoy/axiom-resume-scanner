@@ -8,6 +8,7 @@ import type {
   KeywordExtractionResponse,
   BannedPhrasesResponse,
   HumanizeResponse,
+  BulkScanResponse,
   ContentMode,
   HumanizeTone,
 } from '../types';
@@ -114,6 +115,27 @@ export async function humanizeResume(
     tone,
     mode,
   }, { timeout: 120000 });
+  return data;
+}
+
+export async function exportPDF(resumeText: string, jdText: string, mode: string): Promise<Blob> {
+  const response = await api.post('/export/pdf', {
+    resume_text: resumeText,
+    jd_text: jdText,
+    mode,
+  }, { responseType: 'blob', timeout: 60000 });
+  return response.data;
+}
+
+export async function scanBulk(files: File[], jdText: string, mode: string): Promise<BulkScanResponse> {
+  const formData = new FormData();
+  files.forEach(f => formData.append('files', f));
+  formData.append('jd_text', jdText);
+  formData.append('mode', mode);
+  const { data } = await api.post<BulkScanResponse>('/scan/bulk', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 300000,
+  });
   return data;
 }
 
