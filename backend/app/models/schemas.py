@@ -139,6 +139,23 @@ class ScanMetadata(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class GrammarIssueResponse(BaseModel):
+    type: str = Field(..., description="Issue type: spelling, grammar, style, punctuation")
+    severity: str = Field(..., description="Severity: error, warning, suggestion")
+    message: str = Field(..., description="Human-readable issue description")
+    context: str = Field("", description="The sentence/phrase with the issue")
+    suggestion: str = Field("", description="How to fix the issue")
+
+
+class GrammarResponse(BaseModel):
+    overall_score: int = Field(100, ge=0, le=100, description="Grammar quality score (100 = perfect)")
+    issues: list[GrammarIssueResponse] = Field(default_factory=list)
+    issue_count: int = Field(0, description="Total number of issues found")
+    error_count: int = Field(0, description="Number of errors")
+    warning_count: int = Field(0, description="Number of warnings")
+    suggestion_count: int = Field(0, description="Number of suggestions")
+
+
 class ScanResponse(BaseModel):
     scan_id: str = Field(..., description="Unique scan identifier")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
@@ -148,6 +165,7 @@ class ScanResponse(BaseModel):
     combined: CombinedScoreResponse = Field(default_factory=CombinedScoreResponse)
     readability: ReadabilityResponse = Field(default_factory=ReadabilityResponse)
     text_analytics: TextAnalyticsResponse = Field(default_factory=TextAnalyticsResponse)
+    grammar: GrammarResponse = Field(default_factory=GrammarResponse)
     metadata: ScanMetadata = Field(default_factory=ScanMetadata)
 
 

@@ -4,11 +4,14 @@ import { JDInput } from './JDInput';
 import { FileUpload } from './FileUpload';
 import { ScanButton } from './ScanButton';
 import { ResultsDashboard } from '../Results/ResultsDashboard';
+import { HistoryDashboard } from '../History/HistoryDashboard';
 import { useScan } from '../../hooks/useScan';
 import { useFileUpload } from '../../hooks/useFileUpload';
 import { validateResumeText, validateJDText } from '../../utils/validators';
 import { quickScan } from '../../services/api';
-import { ArrowLeft, FileText, Type, FileEdit, Mail, Globe, BookOpen, Loader2 } from 'lucide-react';
+import { saveScanToHistory } from '../../utils/history';
+import { BulkUpload } from './BulkUpload';
+import { ArrowLeft, FileText, Type, FileEdit, Mail, Globe, BookOpen, Loader2, History, Files } from 'lucide-react';
 import type { ContentMode } from '../../types';
 
 const CONTENT_MODES: { value: ContentMode; label: string; icon: typeof Type }[] = [
@@ -31,8 +34,9 @@ export function ScannerPage() {
   const [jdText, setJdText] = useState('');
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [jdError, setJdError] = useState<string | null>(null);
-  const [inputMode, setInputMode] = useState<'text' | 'file'>('text');
+  const [inputMode, setInputMode] = useState<'text' | 'file' | 'bulk'>('text');
   const [contentMode, setContentMode] = useState<ContentMode>('resume');
+  const [showHistory, setShowHistory] = useState(false);
 
   // Real-time AI score state
   const [quickScore, setQuickScore] = useState<number | null>(null);
@@ -103,16 +107,48 @@ export function ScannerPage() {
     await scan(humanizedText, contentMode === 'resume' ? jdText : '', contentMode);
   };
 
+  // Save scan to history when result arrives
+  const lastSavedId = useRef<string | null>(null);
+  useEffect(() => {
+    if (scanResult && scanResult.scan_id !== lastSavedId.current) {
+      saveScanToHistory(scanResult, contentMode, resumeText);
+      lastSavedId.current = scanResult.scan_id;
+    }
+  }, [scanResult, contentMode, resumeText]);
+
+  if (showHistory) {
+    return (
+      <section className="max-w-5xl mx-auto px-6 py-16">
+        <button
+          onClick={() => setShowHistory(false)}
+          className="flex items-center gap-1.5 text-xs text-muted hover:text-text mb-8 transition"
+        >
+          <ArrowLeft size={12} /> Back to scanner
+        </button>
+        <HistoryDashboard />
+      </section>
+    );
+  }
+
   if (scanResult) {
     return (
       <div className="max-w-5xl mx-auto px-6 py-10">
-        <button onClick={reset} className="flex items-center gap-1.5 text-xs text-muted hover:text-text mb-8 transition">
-          <ArrowLeft size={12} /> New scan
-        </button>
+        <div className="flex items-center justify-between mb-8">
+          <button onClick={reset} className="flex items-center gap-1.5 text-xs text-muted hover:text-text transition">
+            <ArrowLeft size={12} /> New scan
+          </button>
+          <button
+            onClick={() => { reset(); setShowHistory(true); }}
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-text transition"
+          >
+            <History size={12} /> History
+          </button>
+        </div>
         <ResultsDashboard
           result={scanResult}
           resumeText={resumeText}
           jdText={contentMode === 'resume' ? jdText : ''}
+          mode={contentMode}
           onRescan={handleRescan}
         />
       </div>
@@ -120,9 +156,11 @@ export function ScannerPage() {
   }
 
   const isResumeMode = contentMode === 'resume';
-  const canScan = inputMode === 'text'
-    ? resumeText.trim() && (isResumeMode ? jdText.trim() : true)
-    : file && (isResumeMode ? jdText.trim() : true);
+  const canScan = inputMode === 'bulk'
+    ? false  // Bulk mode has its own button
+    : inputMode === 'text'
+      ? resumeText.trim() && (isResumeMode ? jdText.trim() : true)
+      : file && (isResumeMode ? jdText.trim() : true);
 
   return (
     <section id="scanner" className="max-w-5xl mx-auto px-6 py-16" onKeyDown={handleKeyDown}>
@@ -148,7 +186,7 @@ export function ScannerPage() {
         ))}
       </div>
 
-      <div className={`grid ${isResumeMode ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-5 mb-5`}>
+      <div className={`grid ${isResumeMode && inputMode !== 'bulk' ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-5 mb-5`}>
         <div className="relative">
           {/* Input mode toggle (text/file) */}
           <div className="flex items-center gap-1 mb-3 p-0.5 bg-surface rounded-lg w-fit border border-border">
@@ -168,9 +206,19 @@ export function ScannerPage() {
             >
               <FileText size={11} /> File
             </button>
+            <button
+              onClick={() => setInputMode('bulk')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition ${
+                inputMode === 'bulk' ? 'bg-surface-light text-text' : 'text-muted hover:text-text'
+              }`}
+            >
+              <Files size={11} /> Bulk
+            </button>
           </div>
 
-          {inputMode === 'file' ? (
+          {inputMode === 'bulk' ? (
+            <BulkUpload jdText={jdText} contentMode={contentMode} />
+          ) : inputMode === 'file' ? (
             <FileUpload file={file} onFile={handleFile} onRemove={removeFile} error={fileError} />
           ) : (
             <ResumeInput value={resumeText} onChange={setResumeText} error={resumeError} />
@@ -197,16 +245,25 @@ export function ScannerPage() {
           )}
         </div>
 
-        {isResumeMode && (
+        {isResumeMode && inputMode !== 'bulk' && (
           <JDInput value={jdText} onChange={setJdText} error={jdError} />
         )}
       </div>
 
-      <ScanButton
-        onClick={handleScan}
-        isLoading={isLoading}
-        disabled={!canScan}
-      />
+      {/* JD input for bulk mode (shown below file list) */}
+      {isResumeMode && inputMode === 'bulk' && (
+        <div className="mb-5">
+          <JDInput value={jdText} onChange={setJdText} error={jdError} />
+        </div>
+      )}
+
+      {inputMode !== 'bulk' && (
+        <ScanButton
+          onClick={handleScan}
+          isLoading={isLoading}
+          disabled={!canScan}
+        />
+      )}
 
       {error && (
         <div className="mt-3 px-4 py-3 bg-danger-dim border border-danger/20 rounded-xl text-danger text-xs">
@@ -214,9 +271,17 @@ export function ScannerPage() {
         </div>
       )}
 
-      <p className="text-center text-[10px] text-muted mt-3">
-        <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[9px]">Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[9px]">Enter</kbd> to scan
-      </p>
+      <div className="flex items-center justify-center gap-4 mt-3">
+        <p className="text-[10px] text-muted">
+          <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[9px]">Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[9px]">Enter</kbd> to scan
+        </p>
+        <button
+          onClick={() => setShowHistory(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-muted hover:text-text bg-surface border border-border hover:border-primary/30 transition"
+        >
+          <History size={11} /> Scan History
+        </button>
+      </div>
     </section>
   );
 }

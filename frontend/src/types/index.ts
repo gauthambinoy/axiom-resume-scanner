@@ -96,6 +96,7 @@ export interface ScanResponse {
   metadata: ScanMetadata;
   text_analytics?: TextAnalytics;
   readability?: ReadabilityScore;
+  grammar?: GrammarResponse;
 }
 
 export interface QuickScanResponse {
@@ -195,4 +196,32 @@ export interface ReadabilityScore {
   avg_sentence_length: number;
   avg_word_length: number;
   vocabulary_richness: number;
+}
+
+export interface GrammarIssue {
+  type: 'spelling' | 'grammar' | 'style' | 'punctuation';
+  severity: 'error' | 'warning' | 'suggestion';
+  message: string;
+  context: string;
+  suggestion: string;
+}
+
+export interface GrammarResponse {
+  overall_score: number;
+  issues: GrammarIssue[];
+  issue_count: number;
+  error_count: number;
+  warning_count: number;
+  suggestion_count: number;
+}
+
+export interface BulkScanResultItem {
+  filename: string;
+  result?: ScanResponse;
+  error?: string;
+}
+
+export interface BulkScanResponse {
+  results: BulkScanResultItem[];
+  total: number;
 }

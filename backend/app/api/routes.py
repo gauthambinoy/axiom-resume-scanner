@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Form, Query, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from app.models.schemas import (
     ScanRequest,
@@ -18,6 +18,7 @@ from app.models.schemas import (
 import os
 
 from app.engines.constants import BANNED_PHRASES, BANNED_EXTENDED_WORDS, AI_STRUCTURE_PATTERNS
+from app.services.export_service import generate_pdf_report
 from app.engines.keyword_extractor import KeywordExtractor
 from app.api.dependencies import get_scan_service
 from app.services.scan_service import ScanService
@@ -44,6 +45,25 @@ async def scan_resume(
 
 
 @router.post(
+    "/export/pdf",
+    summary="Export scan results as PDF report",
+    description="Runs a full scan and returns a downloadable PDF analysis report",
+    responses={400: {"model": ErrorResponse}},
+)
+async def export_pdf(
+    request: ScanRequest,
+    service: ScanService = Depends(get_scan_service),
+) -> Response:
+    result = await service.scan(request.resume_text, request.jd_text, mode=request.mode)
+    pdf_bytes = generate_pdf_report(result.model_dump())
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=resumeshield-report.pdf"},
+    )
+
+
+@router.post(
     "/scan/file",
     response_model=ScanResponse,
     summary="Scan uploaded resume file against job description",
@@ -67,6 +87,40 @@ async def scan_file(
 
     file_bytes = await file.read()
     return await service.scan("", jd_text, file_bytes=file_bytes, filename=filename, mode=mode)
+
+
+@router.post(
+    "/scan/bulk",
+    summary="Bulk scan multiple resume files",
+    description="Accepts up to 10 PDF/DOCX files for batch scanning",
+)
+async def scan_bulk(
+    files: list[UploadFile] = File(..., description="PDF or DOCX resume files (max 10)"),
+    jd_text: str = Form("", description="Job description text"),
+    mode: str = Form("resume", description="Scan mode"),
+    service: ScanService = Depends(get_scan_service),
+):
+    allowed_types = {
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+    results = []
+    for file in files[:10]:  # Max 10 files
+        content_type = file.content_type or ""
+        filename = file.filename or "upload"
+        ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+        if content_type not in allowed_types and ext not in {"pdf", "docx"}:
+            results.append({"filename": filename, "error": "Unsupported file type"})
+            continue
+        try:
+            file_bytes = await file.read()
+            scan_result = await service.scan(
+                "", jd_text, file_bytes=file_bytes, filename=filename, mode=mode,
+            )
+            results.append({"filename": filename, "result": scan_result.model_dump()})
+        except Exception as e:
+            results.append({"filename": filename, "error": str(e)})
+    return {"results": results, "total": len(results)}
 
 
 @router.post(
