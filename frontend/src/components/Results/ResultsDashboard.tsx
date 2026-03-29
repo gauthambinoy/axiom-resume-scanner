@@ -7,6 +7,8 @@ import { FixSuggestions } from './FixSuggestions';
 import { KeywordGrid } from './KeywordGrid';
 import { ExportButton } from './ExportButton';
 import { HumanizePanel } from './HumanizePanel';
+import { DetectionHeatmap } from './DetectionHeatmap';
+import { WordAnalytics } from './WordAnalytics';
 import { formatMs } from '../../utils/formatters';
 import { Clock, TrendingUp } from 'lucide-react';
 
@@ -84,6 +86,14 @@ export function ResultsDashboard({ result, resumeText, jdText, onRescan }: Resul
           onRescan={onRescan}
         />
       )}
+
+      {/* Detection Heatmap */}
+      {result.ai_score.heatmap && result.ai_score.heatmap.length > 0 && (
+        <DetectionHeatmap heatmap={result.ai_score.heatmap} />
+      )}
+
+      {/* Word Analytics */}
+      <WordAnalytics analytics={result.text_analytics} readability={result.readability} />
 
       {/* Keywords */}
       <KeywordGrid ats={result.ats_score} />

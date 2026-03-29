@@ -328,6 +328,7 @@ class HumanizeRequest:
     flagged_phrases: list[str] = field(default_factory=list)
     flagged_words: list[str] = field(default_factory=list)
     jd_text: str = ""  # Optional: preserve JD-relevant keywords
+    tone: str = "professional"
 
 
 @dataclass
@@ -924,42 +925,55 @@ def _clean_up(text: str) -> str:
     return text
 
 
-def apply_rule_based_transforms(text: str, aggressive: bool = False) -> str:
+def apply_rule_based_transforms(text: str, aggressive: bool = False, tone: str = "professional") -> str:
     """Apply all rule-based transformations.
 
     When aggressive=True, applies more transforms (used on retries).
+
+    Tone controls the style of transformations:
+      - "formal": no contractions, no informal touches, more structured
+      - "casual": more contractions, more informal touches, shorter sentences
+      - "academic": longer sentences, no contractions, formal vocabulary
+      - "professional": balanced (default)
+      - "creative": most varied, most personality
     """
-    # Step 1: Replace banned phrases and words
+    # Step 1: Replace banned phrases and words (all tones)
     text = _replace_banned_phrases(text)
     text = _replace_banned_words(text)
 
-    # Step 2: Fix round numbers
+    # Step 2: Fix round numbers (all tones)
     text = _fix_round_numbers(text)
 
-    # Step 3: Remove AI structure patterns
+    # Step 3: Remove AI structure patterns (all tones)
     text = _remove_ai_structure_patterns(text)
 
-    # Step 4: Inject contractions
-    text = _inject_contractions(text)
+    # Step 4: Inject contractions (skip for formal and academic)
+    if tone not in ("formal", "academic"):
+        text = _inject_contractions(text)
 
     # Step 5: Sentence length variation
     lines = [l for l in text.split("\n")]
     lines = _vary_sentence_lengths(lines)
     text = "\n".join(lines)
 
-    # Step 6: Diversify openers
-    lines = text.split("\n")
-    lines = _diversify_openers(lines)
-    text = "\n".join(lines)
+    # Step 6: Diversify openers (more for creative, less for formal/academic)
+    if tone != "formal":
+        lines = text.split("\n")
+        lines = _diversify_openers(lines)
+        text = "\n".join(lines)
 
-    # Step 7: Punctuation variety
+    # Step 7: Punctuation variety (more for creative and casual)
     text = _inject_punctuation_variety(text)
 
-    # Step 8: Passive voice injection
-    text = _inject_passive_voice(text)
+    # Step 8: Passive voice injection (more for academic, skip for casual)
+    if tone != "casual":
+        text = _inject_passive_voice(text)
 
-    # Step 9: Informal touches
-    text = _add_informal_touches(text)
+    # Step 9: Informal touches (skip for formal and academic)
+    if tone in ("casual", "creative"):
+        text = _add_informal_touches(text)
+    elif tone == "professional":
+        text = _add_informal_touches(text)
 
     # If aggressive mode, run another pass of some transforms
     if aggressive:
@@ -970,7 +984,8 @@ def apply_rule_based_transforms(text: str, aggressive: bool = False) -> str:
         lines = _diversify_openers(lines)
         text = "\n".join(lines)
         text = _inject_punctuation_variety(text)
-        text = _inject_contractions(text)
+        if tone not in ("formal", "academic"):
+            text = _inject_contractions(text)
 
     # Final cleanup
     text = _clean_up(text)
@@ -1099,7 +1114,8 @@ class HumanizerEngine:
                 )
 
             # ── Layer 2: Rule-based transforms ──
-            text = apply_rule_based_transforms(text, aggressive=False)
+            tone = request.tone
+            text = apply_rule_based_transforms(text, aggressive=False, tone=tone)
 
             # ── Layer 3: Self-verification loop ──
             new_score = _quick_score(text)
@@ -1113,7 +1129,7 @@ class HumanizerEngine:
                     score=new_score,
                 )
                 # Re-apply transforms more aggressively
-                text = apply_rule_based_transforms(text, aggressive=True)
+                text = apply_rule_based_transforms(text, aggressive=True, tone=tone)
                 new_score = _quick_score(text)
 
             result.humanized_text = text

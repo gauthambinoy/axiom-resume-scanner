@@ -40,7 +40,7 @@ async def scan_resume(
     request: ScanRequest,
     service: ScanService = Depends(get_scan_service),
 ) -> ScanResponse:
-    return await service.scan(request.resume_text, request.jd_text)
+    return await service.scan(request.resume_text, request.jd_text, mode=request.mode)
 
 
 @router.post(
@@ -52,7 +52,8 @@ async def scan_resume(
 )
 async def scan_file(
     file: UploadFile = File(..., description="PDF or DOCX resume file"),
-    jd_text: str = Form(..., min_length=50, max_length=8000, description="Job description text"),
+    jd_text: str = Form("", max_length=8000, description="Job description text"),
+    mode: str = Form("resume", description="Scan mode: resume, essay, blog, email, general"),
     service: ScanService = Depends(get_scan_service),
 ) -> ScanResponse:
     content_type = file.content_type or ""
@@ -65,7 +66,7 @@ async def scan_file(
         raise InvalidFileError(f"File type '{content_type}' not supported. Upload PDF or DOCX.")
 
     file_bytes = await file.read()
-    return await service.scan("", jd_text, file_bytes=file_bytes, filename=filename)
+    return await service.scan("", jd_text, file_bytes=file_bytes, filename=filename, mode=mode)
 
 
 @router.post(
@@ -171,7 +172,7 @@ async def humanize_text(
     request: HumanizeRequest,
     service: ScanService = Depends(get_scan_service),
 ) -> HumanizeResponse:
-    result = await service.humanize(request.resume_text, request.jd_text)
+    result = await service.humanize(request.resume_text, request.jd_text, tone=request.tone)
     return HumanizeResponse(
         original_text=result.original_text,
         humanized_text=result.humanized_text,
@@ -181,6 +182,29 @@ async def humanize_text(
         retries_used=result.retries_used,
         success=result.success,
     )
+
+
+@router.get(
+    "/modes",
+    summary="Get available scan modes and humanizer tones",
+)
+async def get_modes():
+    return {
+        "modes": [
+            {"id": "resume", "label": "Resume", "requires_jd": True},
+            {"id": "essay", "label": "Essay", "requires_jd": False},
+            {"id": "blog", "label": "Blog Post", "requires_jd": False},
+            {"id": "email", "label": "Email", "requires_jd": False},
+            {"id": "general", "label": "General Text", "requires_jd": False},
+        ],
+        "tones": [
+            {"id": "formal", "label": "Formal"},
+            {"id": "casual", "label": "Casual"},
+            {"id": "academic", "label": "Academic"},
+            {"id": "professional", "label": "Professional"},
+            {"id": "creative", "label": "Creative"},
+        ],
+    }
 
 
 @router.get(

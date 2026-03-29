@@ -59,6 +59,7 @@ export interface AIDetectionResponse {
   per_bullet_analysis: BulletAnalysisResponse[];
   summary_analysis: SummaryAnalysisResponse;
   top_issues: string[];
+  heatmap?: HeatmapItem[];
 }
 
 export interface FixResponse {
@@ -93,6 +94,8 @@ export interface ScanResponse {
   fixes: FixResponse[];
   combined: CombinedScoreResponse;
   metadata: ScanMetadata;
+  text_analytics?: TextAnalytics;
+  readability?: ReadabilityScore;
 }
 
 export interface QuickScanResponse {
@@ -158,4 +161,38 @@ export interface ErrorResponse {
   message: string;
   details: Record<string, unknown> | null;
   timestamp: string;
+}
+
+export type ContentMode = 'resume' | 'essay' | 'blog' | 'email' | 'general';
+
+export type HumanizeTone = 'formal' | 'casual' | 'academic' | 'professional' | 'creative';
+
+export interface HeatmapItem {
+  text: string;
+  risk: number;
+  flags: string[];
+  color: string;
+}
+
+export interface TextAnalytics {
+  word_count: number;
+  character_count: number;
+  sentence_count: number;
+  paragraph_count: number;
+  avg_sentence_length: number;
+  avg_word_length: number;
+  vocabulary_richness: number;
+  longest_sentence: number;
+  shortest_sentence: number;
+  top_words: [string, number][];
+}
+
+export interface ReadabilityScore {
+  flesch_kincaid_grade: number;
+  reading_time_seconds: number;
+  word_count: number;
+  sentence_count: number;
+  avg_sentence_length: number;
+  avg_word_length: number;
+  vocabulary_richness: number;
 }

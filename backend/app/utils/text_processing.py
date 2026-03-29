@@ -1,6 +1,7 @@
 import re
 import html
 import unicodedata
+from collections import Counter
 from dataclasses import dataclass
 
 
@@ -206,3 +207,92 @@ def _count_syllables(word: str) -> int:
     if word.endswith("e") and count > 1:
         count -= 1
     return max(count, 1)
+
+
+_STOP_WORDS = {
+    "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "is", "was", "are", "were", "be", "been",
+    "being", "have", "has", "had", "do", "does", "did", "will", "would",
+    "could", "should", "may", "might", "shall", "can", "need", "dare",
+    "ought", "used", "it", "its", "this", "that", "these", "those",
+    "i", "me", "my", "we", "our", "you", "your", "he", "him", "his",
+    "she", "her", "they", "them", "their", "what", "which", "who",
+    "whom", "where", "when", "why", "how", "not", "no", "nor", "as",
+    "if", "then", "than", "so", "up", "out", "about", "into", "over",
+    "after", "before", "between", "under", "again", "further", "once",
+}
+
+
+def compute_text_analytics(text: str) -> dict:
+    """Compute word-level analytics for a given text."""
+    try:
+        if not text or not text.strip():
+            return {
+                "word_count": 0,
+                "character_count": 0,
+                "sentence_count": 0,
+                "paragraph_count": 0,
+                "avg_sentence_length": 0.0,
+                "avg_word_length": 0.0,
+                "vocabulary_richness": 0.0,
+                "longest_sentence": 0,
+                "shortest_sentence": 0,
+                "top_words": [],
+            }
+
+        words = text.split()
+        word_count = len(words)
+        character_count = len(text)
+
+        sentences = tokenize_sentences(text)
+        sentence_count = len(sentences) if sentences else 0
+
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        paragraph_count = len(paragraphs) if paragraphs else 1
+
+        sentence_lengths = [len(s.split()) for s in sentences] if sentences else [0]
+        avg_sentence_length = round(sum(sentence_lengths) / max(len(sentence_lengths), 1), 2)
+        longest_sentence = max(sentence_lengths) if sentence_lengths else 0
+        shortest_sentence = min(sentence_lengths) if sentence_lengths else 0
+
+        clean_words = [re.sub(r"[^\w]", "", w.lower()) for w in words]
+        clean_words = [w for w in clean_words if w]
+        avg_word_length = round(
+            sum(len(w) for w in clean_words) / max(len(clean_words), 1), 2
+        )
+
+        unique_words = set(clean_words)
+        vocabulary_richness = round(
+            len(unique_words) / max(len(clean_words), 1), 4
+        )
+
+        # Top 10 most frequent non-stop words
+        non_stop = [w for w in clean_words if w not in _STOP_WORDS and len(w) > 1]
+        word_freq = Counter(non_stop)
+        top_words = word_freq.most_common(10)
+
+        return {
+            "word_count": word_count,
+            "character_count": character_count,
+            "sentence_count": sentence_count,
+            "paragraph_count": paragraph_count,
+            "avg_sentence_length": avg_sentence_length,
+            "avg_word_length": avg_word_length,
+            "vocabulary_richness": vocabulary_richness,
+            "longest_sentence": longest_sentence,
+            "shortest_sentence": shortest_sentence,
+            "top_words": top_words,
+        }
+    except Exception:
+        return {
+            "word_count": 0,
+            "character_count": 0,
+            "sentence_count": 0,
+            "paragraph_count": 0,
+            "avg_sentence_length": 0.0,
+            "avg_word_length": 0.0,
+            "vocabulary_richness": 0.0,
+            "longest_sentence": 0,
+            "shortest_sentence": 0,
+            "top_words": [],
+        }

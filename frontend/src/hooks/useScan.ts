@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { ScanResponse } from '../types';
+import type { ScanResponse, ContentMode } from '../types';
 import { scanResume, scanFile } from '../services/api';
 
 type ScanState = 'idle' | 'loading' | 'success' | 'error';
@@ -9,11 +9,11 @@ export function useScan() {
   const [scanResult, setScanResult] = useState<ScanResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const scan = useCallback(async (resumeText: string, jdText: string) => {
+  const scan = useCallback(async (resumeText: string, jdText: string, mode: ContentMode = 'resume') => {
     setState('loading');
     setError(null);
     try {
-      const result = await scanResume(resumeText, jdText);
+      const result = await scanResume(resumeText, jdText, mode);
       setScanResult(result);
       setState('success');
       try {
@@ -28,11 +28,11 @@ export function useScan() {
     }
   }, []);
 
-  const scanWithFile = useCallback(async (file: File, jdText: string) => {
+  const scanWithFile = useCallback(async (file: File, jdText: string, mode: ContentMode = 'resume') => {
     setState('loading');
     setError(null);
     try {
-      const result = await scanFile(file, jdText);
+      const result = await scanFile(file, jdText, mode);
       setScanResult(result);
       setState('success');
       return result;

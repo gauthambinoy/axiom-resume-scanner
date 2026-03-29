@@ -57,6 +57,14 @@ class SummaryAnalysis:
 
 
 @dataclass
+class HeatmapItem:
+    text: str
+    risk: float  # 0.0 to 1.0
+    flags: list[str] = field(default_factory=list)
+    color: str = "green"  # green, yellow, orange, red
+
+
+@dataclass
 class AIDetectionResult:
     overall_score: float = 0.0
     risk_level: str = "LOW"
@@ -64,6 +72,7 @@ class AIDetectionResult:
     per_bullet_analysis: list[BulletAnalysis] = field(default_factory=list)
     summary_analysis: SummaryAnalysis = field(default_factory=SummaryAnalysis)
     top_issues: list[str] = field(default_factory=list)
+    heatmap: list[HeatmapItem] = field(default_factory=list)
 
 
 class AIDetectionEngine:
@@ -137,6 +146,9 @@ class AIDetectionEngine:
             result.top_issues = [
                 f"{s.name}: {s.details}" for s in sorted_signals[:5] if s.score > 0
             ]
+
+            # Heatmap
+            result.heatmap = self.generate_heatmap(resume_text, result.per_bullet_analysis)
 
             return result
         except Exception as e:
@@ -938,6 +950,45 @@ class AIDetectionEngine:
             details = f"Natural perplexity (score: {combined_score:.2f}). Text has human-like unpredictability."
 
         return DetectionSignal(name=name, score=round(score, 2), details=details)
+
+    def generate_heatmap(
+        self, full_text: str, bullet_analyses: list[BulletAnalysis],
+    ) -> list[HeatmapItem]:
+        """Generate a heatmap of risk scores for each analyzed bullet."""
+        heatmap: list[HeatmapItem] = []
+        for ba in bullet_analyses:
+            risk = 0.0
+            # Factor 1: number of flags (each flag adds 0.2, capped contribution at 0.6)
+            flag_contribution = min(len(ba.flags) * 0.2, 0.6)
+            risk += flag_contribution
+            # Factor 2: banned phrases found (each adds 0.15, capped at 0.3)
+            phrase_contribution = min(len(ba.banned_phrases_found) * 0.15, 0.3)
+            risk += phrase_contribution
+            # Factor 3: structure type penalty for overly uniform patterns
+            if ba.structure_type in ("action_metric", "action_result_metric"):
+                risk += 0.1
+            # Factor 4: ends with metric (common AI pattern)
+            if ba.ends_with_metric:
+                risk += 0.1
+
+            risk = round(min(risk, 1.0), 2)
+
+            if risk < 0.2:
+                color = "green"
+            elif risk < 0.5:
+                color = "yellow"
+            elif risk < 0.75:
+                color = "orange"
+            else:
+                color = "red"
+
+            heatmap.append(HeatmapItem(
+                text=ba.text,
+                risk=risk,
+                flags=ba.flags,
+                color=color,
+            ))
+        return heatmap
 
     def _analyze_bullets(self, bullets: list[BulletPoint], full_text: str) -> list[BulletAnalysis]:
         analyses: list[BulletAnalysis] = []
