@@ -52,7 +52,6 @@ export function HumanizePanel({ aiScore, riskLevel, resumeText, jdText, onRescan
   // Only show when AI score is above 30
   if (aiScore <= 30) return null;
 
-  const scoreColor = getScoreColor(aiScore, true);
   const isModerate = riskLevel === 'MODERATE';
   const borderColor = isModerate ? 'border-warning/30' : 'border-danger/30';
   const bgAccent = isModerate ? 'bg-warning-dim' : 'bg-danger-dim';
