@@ -8,6 +8,8 @@ import type {
   KeywordExtractionResponse,
   BannedPhrasesResponse,
   HumanizeResponse,
+  ContentMode,
+  HumanizeTone,
 } from '../types';
 
 const api = axios.create({
@@ -36,28 +38,31 @@ api.interceptors.response.use(
   }
 );
 
-export async function scanResume(resumeText: string, jdText: string): Promise<ScanResponse> {
+export async function scanResume(resumeText: string, jdText: string, mode: ContentMode = 'resume'): Promise<ScanResponse> {
   const { data } = await api.post<ScanResponse>('/scan', {
     resume_text: resumeText,
     jd_text: jdText,
+    mode,
   });
   return data;
 }
 
-export async function scanFile(file: File, jdText: string): Promise<ScanResponse> {
+export async function scanFile(file: File, jdText: string, mode: ContentMode = 'resume'): Promise<ScanResponse> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('jd_text', jdText);
+  formData.append('mode', mode);
   const { data } = await api.post<ScanResponse>('/scan/file', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return data;
 }
 
-export async function quickScan(resumeText: string, jdText: string): Promise<QuickScanResponse> {
+export async function quickScan(resumeText: string, jdText: string = '', mode: ContentMode = 'resume'): Promise<QuickScanResponse> {
   const { data } = await api.post<QuickScanResponse>('/scan/quick', {
     resume_text: resumeText,
     jd_text: jdText,
+    mode,
   });
   return data;
 }
@@ -97,10 +102,17 @@ export async function extractKeywords(jdText: string): Promise<KeywordExtraction
   return data;
 }
 
-export async function humanizeResume(resumeText: string, jdText: string): Promise<HumanizeResponse> {
+export async function humanizeResume(
+  resumeText: string,
+  jdText: string,
+  tone: HumanizeTone = 'professional',
+  mode: ContentMode = 'resume'
+): Promise<HumanizeResponse> {
   const { data } = await api.post<HumanizeResponse>('/humanize', {
     resume_text: resumeText,
     jd_text: jdText,
+    tone,
+    mode,
   }, { timeout: 120000 });
   return data;
 }

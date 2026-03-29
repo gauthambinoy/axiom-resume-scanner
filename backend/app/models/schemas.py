@@ -6,12 +6,14 @@ from pydantic import BaseModel, Field, ConfigDict
 
 class ScanRequest(BaseModel):
     resume_text: str = Field(..., min_length=100, max_length=15000, description="Resume text content")
-    jd_text: str = Field(..., min_length=50, max_length=8000, description="Job description text")
+    jd_text: str = Field("", min_length=0, max_length=8000, description="Job description text")
+    mode: str = Field("resume", description="Scan mode: resume, essay, blog, email, general")
 
     model_config = ConfigDict(json_schema_extra={
         "examples": [{
             "resume_text": "John Doe\njohn@example.com\n\nExperience\n- Built microservices with Python...",
-            "jd_text": "We are looking for a Senior Python Developer with experience in FastAPI..."
+            "jd_text": "We are looking for a Senior Python Developer with experience in FastAPI...",
+            "mode": "resume"
         }]
     })
 
@@ -73,6 +75,26 @@ class SummaryAnalysisResponse(BaseModel):
     has_seniority_label: bool = Field(False)
 
 
+class HeatmapItemResponse(BaseModel):
+    text: str
+    risk: float
+    flags: list[str] = Field(default_factory=list)
+    color: str = "green"
+
+
+class TextAnalyticsResponse(BaseModel):
+    word_count: int = 0
+    character_count: int = 0
+    sentence_count: int = 0
+    paragraph_count: int = 0
+    avg_sentence_length: float = 0.0
+    avg_word_length: float = 0.0
+    vocabulary_richness: float = 0.0
+    longest_sentence: int = 0
+    shortest_sentence: int = 0
+    top_words: list[list] = Field(default_factory=list)
+
+
 class AIDetectionResponse(BaseModel):
     overall_score: float = Field(0, ge=0, le=100, description="AI detection score (0=human, 100=AI)")
     risk_level: str = Field("LOW", description="Risk level: LOW, MODERATE, HIGH, CRITICAL")
@@ -80,6 +102,7 @@ class AIDetectionResponse(BaseModel):
     per_bullet_analysis: list[BulletAnalysisResponse] = Field(default_factory=list)
     summary_analysis: SummaryAnalysisResponse = Field(default_factory=SummaryAnalysisResponse)
     top_issues: list[str] = Field(default_factory=list)
+    heatmap: list[HeatmapItemResponse] = Field(default_factory=list)
 
 
 class FixResponse(BaseModel):
@@ -99,6 +122,16 @@ class CombinedScoreResponse(BaseModel):
     ai_weight: float = Field(0.4)
 
 
+class ReadabilityResponse(BaseModel):
+    flesch_kincaid_grade: float = Field(0.0, description="Flesch-Kincaid readability grade level")
+    reading_time_seconds: int = Field(0, description="Estimated reading time in seconds")
+    word_count: int = Field(0, description="Total word count")
+    sentence_count: int = Field(0, description="Total sentence count")
+    avg_sentence_length: float = Field(0.0, description="Average words per sentence")
+    avg_word_length: float = Field(0.0, description="Average characters per word")
+    vocabulary_richness: float = Field(0.0, description="Unique words / total words ratio")
+
+
 class ScanMetadata(BaseModel):
     processing_time_ms: int = Field(0, description="Total processing time in milliseconds")
     engines_used: list[str] = Field(default_factory=list)
@@ -113,6 +146,8 @@ class ScanResponse(BaseModel):
     ai_score: AIDetectionResponse = Field(default_factory=AIDetectionResponse)
     fixes: list[FixResponse] = Field(default_factory=list)
     combined: CombinedScoreResponse = Field(default_factory=CombinedScoreResponse)
+    readability: ReadabilityResponse = Field(default_factory=ReadabilityResponse)
+    text_analytics: TextAnalyticsResponse = Field(default_factory=TextAnalyticsResponse)
     metadata: ScanMetadata = Field(default_factory=ScanMetadata)
 
 
@@ -167,6 +202,8 @@ class BannedPhrasesResponse(BaseModel):
 class HumanizeRequest(BaseModel):
     resume_text: str = Field(..., min_length=50, max_length=15000, description="Resume text to humanize")
     jd_text: str = Field("", max_length=8000, description="Optional: job description to preserve relevant keywords")
+    mode: str = Field("general", description="Text mode: resume, essay, blog, email, general")
+    tone: str = Field("professional", description="Output tone: formal, casual, academic, professional, creative")
 
 
 class HumanizeResponse(BaseModel):

@@ -9,6 +9,7 @@ from app.engines.fix_generator import FixGenerator
 from app.engines.pdf_parser import PDFParser
 from app.engines.scoring import ScoreNormalizer
 from app.engines.humanizer_engine import HumanizerEngine, HumanizeRequest, HumanizeResult
+from app.engines.readability_engine import ReadabilityEngine
 from app.models.schemas import (
     ScanResponse,
     ATSScoreResponse,
@@ -18,12 +19,15 @@ from app.models.schemas import (
     SummaryAnalysisResponse,
     FixResponse,
     CombinedScoreResponse,
+    ReadabilityResponse,
     ScanMetadata,
     KeywordMatchResponse,
     QuickScanResponse,
     CompareResponse,
+    HeatmapItemResponse,
+    TextAnalyticsResponse,
 )
-from app.utils.text_processing import clean_text
+from app.utils.text_processing import clean_text, compute_text_analytics
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -39,6 +43,7 @@ class ScanService:
         self._pdf_parser = PDFParser()
         self._score_normalizer = ScoreNormalizer()
         self._humanizer = HumanizerEngine()
+        self._readability = ReadabilityEngine()
         self._scan_count = 0
         self._total_ats = 0.0
         self._total_ai = 0.0
@@ -50,6 +55,7 @@ class ScanService:
         jd_text: str,
         file_bytes: bytes | None = None,
         filename: str = "",
+        mode: str = "resume",
     ) -> ScanResponse:
         start = time.time()
         scan_id = str(uuid.uuid4())
@@ -73,32 +79,49 @@ class ScanService:
             cleaned_resume = clean_text(resume_text)
             cleaned_jd = clean_text(jd_text)
 
-            # Step 5: Extract keywords
-            keywords = self._keyword_extractor.extract(cleaned_jd)
-            engines_used.append("keyword_extractor")
-            if keywords.warning:
-                warnings.append(keywords.warning)
-
-            # Step 6: Parse sections
+            # Step 5: Parse sections
             sections = self._section_parser.parse(cleaned_resume)
             engines_used.append("section_parser")
             warnings.extend(sections.warnings)
 
-            # Step 7: ATS scoring
-            ats_result = self._ats_engine.score(cleaned_resume, cleaned_jd, sections, keywords)
-            engines_used.append("ats_engine")
+            # Step 6: ATS scoring (resume mode only)
+            if mode == "resume" and cleaned_jd:
+                keywords = self._keyword_extractor.extract(cleaned_jd)
+                engines_used.append("keyword_extractor")
+                if keywords.warning:
+                    warnings.append(keywords.warning)
 
-            # Step 8: AI detection
+                ats_result = self._ats_engine.score(cleaned_resume, cleaned_jd, sections, keywords)
+                engines_used.append("ats_engine")
+            else:
+                # Non-resume modes: skip ATS, use a stub result
+                ats_result = type("ATSStub", (), {
+                    "overall_score": 0, "keyword_match_score": 0,
+                    "keyword_placement_score": 0, "section_score": 0,
+                    "formatting_score": 0, "relevance_score": 0,
+                    "matched_keywords": [], "missing_keywords": [],
+                    "skills_only_keywords": [], "section_warnings": [],
+                    "formatting_warnings": [], "grade": "N/A",
+                })()
+
+            # Step 7: AI detection (all modes)
             ai_result = self._ai_engine.analyze(cleaned_resume, sections, sections.bullets)
             engines_used.append("ai_detection_engine")
 
-            # Step 9: Generate fixes
+            # Step 8: Readability analysis (all modes)
+            readability_result = self._readability.analyze(cleaned_resume)
+            engines_used.append("readability_engine")
+
+            # Step 9: Generate fixes (all modes)
             fixes = self._fix_generator.generate(ats_result, ai_result, sections)
             engines_used.append("fix_generator")
 
             # Step 10: Combined scoring
             combined = self._score_normalizer.combine(ats_result, ai_result)
             engines_used.append("score_normalizer")
+
+            # Step 11: Text analytics
+            text_analytics = compute_text_analytics(cleaned_resume)
 
             # Track stats
             self._scan_count += 1
@@ -111,6 +134,7 @@ class ScanService:
             return self._build_response(
                 scan_id, ats_result, ai_result, fixes, combined,
                 elapsed_ms, engines_used, degraded, warnings, sections,
+                readability_result, text_analytics,
             )
 
         except Exception as e:
@@ -170,7 +194,7 @@ class ScanService:
             still_missing=list(after_missing),
         )
 
-    async def humanize(self, resume_text: str, jd_text: str = "") -> HumanizeResult:
+    async def humanize(self, resume_text: str, jd_text: str = "", tone: str = "professional") -> HumanizeResult:
         """Run AI detection on the text, then humanize flagged content."""
         cleaned_resume = clean_text(resume_text)
 
@@ -199,6 +223,7 @@ class ScanService:
             flagged_phrases=flagged_phrases,
             flagged_words=flagged_words,
             jd_text=jd_text,
+            tone=tone,
         )
 
         return await self._humanizer.humanize(request)
@@ -214,6 +239,7 @@ class ScanService:
     def _build_response(
         self, scan_id, ats_result, ai_result, fixes, combined,
         elapsed_ms, engines_used, degraded, warnings, sections,
+        readability_result=None, text_analytics=None,
     ) -> ScanResponse:
         # ATS response
         ats_resp = ATSScoreResponse(
@@ -274,6 +300,15 @@ class ScanService:
             has_seniority_label=sa.has_seniority_label,
         )
 
+        heatmap_responses = [
+            HeatmapItemResponse(
+                text=h.text,
+                risk=h.risk,
+                flags=h.flags,
+                color=h.color,
+            ) for h in getattr(ai_result, "heatmap", [])
+        ]
+
         ai_resp = AIDetectionResponse(
             overall_score=round(ai_result.overall_score, 1),
             risk_level=ai_result.risk_level,
@@ -281,6 +316,7 @@ class ScanService:
             per_bullet_analysis=bullet_responses,
             summary_analysis=summary_resp,
             top_issues=ai_result.top_issues,
+            heatmap=heatmap_responses,
         )
 
         # Fixes
@@ -304,12 +340,43 @@ class ScanService:
             ai_weight=combined.ai_weight,
         )
 
+        # Readability
+        readability_resp = ReadabilityResponse()
+        if readability_result is not None:
+            readability_resp = ReadabilityResponse(
+                flesch_kincaid_grade=readability_result.flesch_kincaid_grade,
+                reading_time_seconds=readability_result.reading_time_seconds,
+                word_count=readability_result.word_count,
+                sentence_count=readability_result.sentence_count,
+                avg_sentence_length=readability_result.avg_sentence_length,
+                avg_word_length=readability_result.avg_word_length,
+                vocabulary_richness=readability_result.vocabulary_richness,
+            )
+
+        # Text analytics
+        text_analytics_resp = TextAnalyticsResponse()
+        if text_analytics is not None:
+            text_analytics_resp = TextAnalyticsResponse(
+                word_count=text_analytics.get("word_count", 0),
+                character_count=text_analytics.get("character_count", 0),
+                sentence_count=text_analytics.get("sentence_count", 0),
+                paragraph_count=text_analytics.get("paragraph_count", 0),
+                avg_sentence_length=text_analytics.get("avg_sentence_length", 0.0),
+                avg_word_length=text_analytics.get("avg_word_length", 0.0),
+                vocabulary_richness=text_analytics.get("vocabulary_richness", 0.0),
+                longest_sentence=text_analytics.get("longest_sentence", 0),
+                shortest_sentence=text_analytics.get("shortest_sentence", 0),
+                top_words=[list(t) for t in text_analytics.get("top_words", [])],
+            )
+
         return ScanResponse(
             scan_id=scan_id,
             ats_score=ats_resp,
             ai_score=ai_resp,
             fixes=fix_responses,
             combined=combined_resp,
+            readability=readability_resp,
+            text_analytics=text_analytics_resp,
             metadata=ScanMetadata(
                 processing_time_ms=elapsed_ms,
                 engines_used=engines_used,

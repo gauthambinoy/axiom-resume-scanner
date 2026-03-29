@@ -1,8 +1,16 @@
 import { useState, useCallback } from 'react';
-import type { HumanizeResponse } from '../../types';
+import type { HumanizeResponse, HumanizeTone } from '../../types';
 import { humanizeResume } from '../../services/api';
 import { Sparkles, Copy, Check, RefreshCw, ArrowRight, AlertTriangle } from 'lucide-react';
 import { getScoreColor } from '../../utils/constants';
+
+const TONE_OPTIONS: { value: HumanizeTone; label: string }[] = [
+  { value: 'formal', label: 'Formal' },
+  { value: 'casual', label: 'Casual' },
+  { value: 'academic', label: 'Academic' },
+  { value: 'professional', label: 'Professional' },
+  { value: 'creative', label: 'Creative' },
+];
 
 interface Props {
   aiScore: number;
@@ -17,12 +25,13 @@ export function HumanizePanel({ aiScore, riskLevel, resumeText, jdText, onRescan
   const [result, setResult] = useState<HumanizeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [tone, setTone] = useState<HumanizeTone>('professional');
 
   const handleHumanize = useCallback(async () => {
     setState('loading');
     setError(null);
     try {
-      const data = await humanizeResume(resumeText, jdText);
+      const data = await humanizeResume(resumeText, jdText, tone);
       setResult(data);
       setState('success');
     } catch (err) {
@@ -30,7 +39,7 @@ export function HumanizePanel({ aiScore, riskLevel, resumeText, jdText, onRescan
       setError(msg);
       setState('error');
     }
-  }, [resumeText, jdText]);
+  }, [resumeText, jdText, tone]);
 
   const handleCopy = useCallback(async () => {
     if (!result) return;
@@ -70,14 +79,26 @@ export function HumanizePanel({ aiScore, riskLevel, resumeText, jdText, onRescan
               Many ATS systems now flag AI-generated content. Humanize your resume to reduce detection risk
               while preserving your qualifications and keywords.
             </p>
-            <button
-              onClick={handleHumanize}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold
-                         bg-primary text-white hover:bg-primary-light transition shadow-md shadow-primary/20"
-            >
-              <Sparkles size={13} />
-              Humanize My Resume
-            </button>
+            <div className="flex items-center gap-3">
+              <select
+                value={tone}
+                onChange={(e) => setTone(e.target.value as HumanizeTone)}
+                className="px-2.5 py-2 bg-bg border border-border rounded-lg text-[11px] text-text-secondary
+                           focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40 transition"
+              >
+                {TONE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleHumanize}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold
+                           bg-primary text-white hover:bg-primary-light transition shadow-md shadow-primary/20"
+              >
+                <Sparkles size={13} />
+                Humanize My Resume
+              </button>
+            </div>
             {state === 'error' && error && (
               <p className="mt-3 text-[11px] text-danger">{error}</p>
             )}
