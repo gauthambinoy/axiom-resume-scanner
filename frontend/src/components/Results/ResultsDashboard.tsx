@@ -79,7 +79,7 @@ export function ResultsDashboard({ result, resumeText, jdText, mode = 'resume', 
       </div>
 
       {/* Humanize CTA */}
-      {resumeText && jdText && (
+      {resumeText && (
         <HumanizePanel
           aiScore={result.ai_score.overall_score}
           riskLevel={result.ai_score.risk_level}
@@ -95,10 +95,12 @@ export function ResultsDashboard({ result, resumeText, jdText, mode = 'resume', 
       )}
 
       {/* Grammar & Writing Quality */}
-      <GrammarPanel grammar={result.grammar} />
+      {result.grammar && <GrammarPanel grammar={result.grammar} />}
 
       {/* Word Analytics */}
-      <WordAnalytics analytics={result.text_analytics} readability={result.readability} />
+      {(result.text_analytics || result.readability) && (
+        <WordAnalytics analytics={result.text_analytics} readability={result.readability} />
+      )}
 
       {/* Keywords */}
       <KeywordGrid ats={result.ats_score} />
