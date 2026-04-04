@@ -2,7 +2,14 @@
 
 **Pass the ATS. Fool the AI Detector. Land the Interview.**
 
-![Python](https://img.shields.io/badge/Python-3.12-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green) ![React](https://img.shields.io/badge/React-18-blue) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![Docker](https://img.shields.io/badge/Docker-ready-blue)
+![CI Backend](https://github.com/gauthambinoy/resumeshield/actions/workflows/backend-ci.yml/badge.svg)
+![CI Frontend](https://github.com/gauthambinoy/resumeshield/actions/workflows/frontend-ci.yml/badge.svg)
+![Python](https://img.shields.io/badge/Python-3.12-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
+![React](https://img.shields.io/badge/React-18-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![Docker](https://img.shields.io/badge/Docker-ready-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 **Live Demo: [https://resumeshield.vercel.app](https://resumeshield.vercel.app)**
 
@@ -131,6 +138,20 @@ cd backend
 pytest -v                          # Run all tests
 pytest --cov=app --cov-report=html # Coverage report (80%+)
 ```
+
+## Screenshots
+
+> Screenshots coming soon. To add your own: run the app locally, take a screenshot of the scanner and results pages, and save them to `docs/screenshots/`.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup instructions, code standards, testing guide, and PR process.
+
+## Architecture
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a deep-dive into the dual-axis scanning pipeline, engine design, frontend data flow, and deployment architecture.
 
 ## License
 

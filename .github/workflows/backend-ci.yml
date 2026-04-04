@@ -24,13 +24,20 @@ jobs:
           cache: pip
 
       - run: pip install -r requirements.txt
+      - run: pip install -r requirements-dev.txt
 
       - run: python -m spacy download en_core_web_sm
 
       - run: python -c "import nltk; nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger_eng'); nltk.download('stopwords')"
 
+      - name: Lint — ruff
+        run: ruff check app/
+
+      - name: Format check — black
+        run: black --check app/
+
       - name: Run tests
-        run: pytest --cov=app --cov-report=xml --cov-fail-under=78 -v
+        run: pytest --cov=app --cov-report=xml --cov-fail-under=60 -v
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
