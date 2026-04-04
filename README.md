@@ -1,9 +1,9 @@
-# ResumeShield
+# Axiom Resume Scanner
 
 **Pass the ATS. Fool the AI Detector. Land the Interview.**
 
-![CI Backend](https://github.com/gauthambinoy/resumeshield/actions/workflows/backend-ci.yml/badge.svg)
-![CI Frontend](https://github.com/gauthambinoy/resumeshield/actions/workflows/frontend-ci.yml/badge.svg)
+![CI Backend](https://github.com/gauthambinoy/axiom-resume-scanner/actions/workflows/backend-ci.yml/badge.svg)
+![CI Frontend](https://github.com/gauthambinoy/axiom-resume-scanner/actions/workflows/frontend-ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
 ![React](https://img.shields.io/badge/React-18-blue)
@@ -11,7 +11,7 @@
 ![Docker](https://img.shields.io/badge/Docker-ready-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-**Live Demo: [https://resumeshield.vercel.app](https://resumeshield.vercel.app)**
+**Live Demo: [https://axiom-resume-scanner.vercel.app](https://axiom-resume-scanner.vercel.app)**
 
 ---
 
