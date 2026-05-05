@@ -84,7 +84,7 @@ export function ResultsDashboard({ result, resumeText, jdText, mode = 'resume', 
           aiScore={result.ai_score.overall_score}
           riskLevel={result.ai_score.risk_level}
           resumeText={resumeText}
-          jdText={jdText}
+          jdText={jdText || ''}
           onRescan={onRescan}
         />
       )}

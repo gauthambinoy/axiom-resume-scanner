@@ -11,7 +11,7 @@
 ![Docker](https://img.shields.io/badge/Docker-ready-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-**Live Demo: [https://axiom-resume-scanner.vercel.app](https://axiom-resume-scanner.vercel.app)**
+**Live Demo: [https://resumeshield.vercel.app](https://resumeshield.vercel.app)**
 
 ---
 

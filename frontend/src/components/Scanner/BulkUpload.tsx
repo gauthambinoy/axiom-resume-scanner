@@ -240,7 +240,6 @@ export function BulkUpload({ jdText, contentMode }: Props) {
                   <ResultRow
                     key={i}
                     item={item}
-                    index={i}
                     expanded={expandedRow === i}
                     onToggle={() => setExpandedRow(expandedRow === i ? null : i)}
                   />
@@ -256,12 +255,10 @@ export function BulkUpload({ jdText, contentMode }: Props) {
 
 function ResultRow({
   item,
-  index,
   expanded,
   onToggle,
 }: {
   item: BulkScanResultItem;
-  index: number;
   expanded: boolean;
   onToggle: () => void;
 }) {
